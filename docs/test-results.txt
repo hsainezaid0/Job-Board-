@@ -1,0 +1,119 @@
+test_01_public_search_filters_and_pagination (test_api.APITest.test_01_public_search_filters_and_pagination) ... 127.0.0.1 - - [19/Oct/2026 15:11:10] "GET /api/ads HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "GET /api/ads?contract=Stage HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "GET /api/ads?location=Paris HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "GET /api/ads?q=React HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "GET /api/ads?q=unmotinexistant HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "GET /api/ads?page=2 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "GET /api/ads?page=abc HTTP/1.1" 400 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "GET /api/ads?sort=salary HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "GET /api/ads/999999 HTTP/1.1" 404 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "GET /api/ads/1 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "GET /api/companies/1/ads HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "GET /api/companies/999999/ads HTTP/1.1" 404 -
+ok
+test_02_anonymous_permissions (test_api.APITest.test_02_anonymous_permissions) ... 127.0.0.1 - - [19/Oct/2026 15:11:10] "POST /api/companies HTTP/1.1" 401 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "PATCH /api/companies/1 HTTP/1.1" 401 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "DELETE /api/companies/1 HTTP/1.1" 401 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "POST /api/categories HTTP/1.1" 401 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "PATCH /api/categories/1 HTTP/1.1" 401 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "DELETE /api/categories/1 HTTP/1.1" 401 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "POST /api/people HTTP/1.1" 401 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "PATCH /api/people/1 HTTP/1.1" 401 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "DELETE /api/people/1 HTTP/1.1" 401 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "POST /api/ads HTTP/1.1" 401 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "PATCH /api/ads/1 HTTP/1.1" 401 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "DELETE /api/ads/1 HTTP/1.1" 401 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "POST /api/applications HTTP/1.1" 401 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "PATCH /api/applications/1 HTTP/1.1" 401 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "DELETE /api/applications/1 HTTP/1.1" 401 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "GET /api/people HTTP/1.1" 401 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "GET /api/applications HTTP/1.1" 401 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "GET /api/my-applications HTTP/1.1" 401 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "GET /api/auth/me HTTP/1.1" 200 -
+ok
+test_03_register_profile_apply_and_logout (test_api.APITest.test_03_register_profile_apply_and_logout) ... 127.0.0.1 - - [19/Oct/2026 15:11:10] "POST /api/auth/register HTTP/1.1" 201 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "GET /api/auth/me HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "GET /api/people HTTP/1.1" 403 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "POST /api/ads HTTP/1.1" 403 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "PATCH /api/account HTTP/1.1" 400 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "PATCH /api/account HTTP/1.1" 400 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "PATCH /api/account HTTP/1.1" 400 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "PATCH /api/account HTTP/1.1" 400 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "PATCH /api/account HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "POST /api/ads/2/applications HTTP/1.1" 201 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "POST /api/ads/2/applications HTTP/1.1" 409 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "GET /api/my-applications HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "POST /api/auth/logout HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "GET /api/auth/me HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "POST /api/auth/login HTTP/1.1" 401 -
+127.0.0.1 - - [19/Oct/2026 15:11:10] "POST /api/auth/login HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "PATCH /api/account HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "POST /api/auth/logout HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "POST /api/auth/login HTTP/1.1" 200 -
+ok
+test_04_guest_application_and_validation (test_api.APITest.test_04_guest_application_and_validation) ... 127.0.0.1 - - [19/Oct/2026 15:11:11] "POST /api/ads/1/applications HTTP/1.1" 201 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "POST /api/ads/1/applications HTTP/1.1" 409 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "POST /api/ads/1/applications HTTP/1.1" 409 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "POST /api/ads/1/applications HTTP/1.1" 400 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "POST /api/ads/1/applications HTTP/1.1" 400 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "POST /api/ads/999999/applications HTTP/1.1" 404 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "POST /api/auth/register HTTP/1.1" 400 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "POST /api/auth/register HTTP/1.1" 400 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "POST /api/auth/register HTTP/1.1" 400 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "POST /api/auth/register HTTP/1.1" 409 -
+ok
+test_05_admin_crud_all_tables (test_api.APITest.test_05_admin_crud_all_tables) ... 127.0.0.1 - - [19/Oct/2026 15:11:11] "POST /api/auth/login HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "POST /api/companies HTTP/1.1" 201 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "POST /api/categories HTTP/1.1" 201 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "POST /api/people HTTP/1.1" 201 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "POST /api/ads HTTP/1.1" 201 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "POST /api/applications HTTP/1.1" 201 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "GET /api/companies?limit=100 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "GET /api/companies/7 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "PATCH /api/companies/7 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "GET /api/categories?limit=100 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "GET /api/categories/7 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "PATCH /api/categories/7 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "GET /api/people?limit=100 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "GET /api/people/6 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "PATCH /api/people/6 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "GET /api/ads?limit=100 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "GET /api/ads/13 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "PATCH /api/ads/13 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "GET /api/applications?limit=100 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "GET /api/applications/6 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "PATCH /api/applications/6 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "DELETE /api/companies/7 HTTP/1.1" 409 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "DELETE /api/categories/7 HTTP/1.1" 409 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "PATCH /api/ads/13 HTTP/1.1" 400 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "POST /api/categories HTTP/1.1" 400 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "POST /api/categories HTTP/1.1" 409 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "PATCH /api/people/1 HTTP/1.1" 400 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "DELETE /api/people/1 HTTP/1.1" 400 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "PATCH /api/ads/999999 HTTP/1.1" 404 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "POST /api/companies HTTP/1.1" 400 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "POST /api/people HTTP/1.1" 400 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "POST /api/categories HTTP/1.1" 400 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "PUT /api/categories/7 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "DELETE /api/applications/6 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "GET /api/applications/6 HTTP/1.1" 404 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "DELETE /api/ads/13 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "GET /api/ads/13 HTTP/1.1" 404 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "DELETE /api/companies/7 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "GET /api/companies/7 HTTP/1.1" 404 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "DELETE /api/categories/7 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "GET /api/categories/7 HTTP/1.1" 404 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "DELETE /api/people/6 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "GET /api/people/6 HTTP/1.1" 404 -
+ok
+test_06_security_and_invalid_requests (test_api.APITest.test_06_security_and_invalid_requests) ... 127.0.0.1 - - [19/Oct/2026 15:11:11] "GET /api/ads?q=%27%20OR%201%3D1-- HTTP/1.1" 200 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "POST /api/auth/login HTTP/1.1" 403 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "GET /api/not-found HTTP/1.1" 404 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "POST /api/auth/register HTTP/1.1" 400 -
+127.0.0.1 - - [19/Oct/2026 15:11:11] "POST /api/auth/login HTTP/1.1" 400 -
+ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 1.844s
+
+OK
