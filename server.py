@@ -8,6 +8,7 @@ import re
 import secrets
 import sqlite3
 import time
+from contextlib import closing
 from http.cookies import SimpleCookie, CookieError
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -55,11 +56,20 @@ def connect():
 
 def initialize():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with connect() as db:
+    with closing(connect()) as db, db:
         db.execute('PRAGMA journal_mode=WAL')
         db.executescript((ROOT / 'schema.sql').read_text(encoding='utf-8'))
         migrate_people(db)
-        seed(db)
+        if os.environ.get('JOBBOARD_ENV') == 'production':
+            if not db.execute('SELECT 1 FROM people LIMIT 1').fetchone():
+                email = os.environ.get('ADMIN_EMAIL', '').strip().lower()
+                password = os.environ.get('ADMIN_PASSWORD', '')
+                if not EMAIL.fullmatch(email) or len(password) < 16:
+                    raise RuntimeError('Set ADMIN_EMAIL and ADMIN_PASSWORD (at least 16 characters) before first production startup.')
+                db.execute('INSERT INTO people(name,email,phone,password_hash,role) VALUES(?,?,?,?,?)',
+                           ('Administrator', email, '', hash_password(password), 'admin'))
+        else:
+            seed(db)
         migrate_application_contacts(db)
 
 def migrate_application_contacts(db):
