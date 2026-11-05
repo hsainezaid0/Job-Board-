@@ -42,6 +42,7 @@ La base est automatiquement créée dans `data/hireloop.sqlite3`, puis remplie *
 | Administrateur | `admin@hireloop.test` | `Admin2026!` |
 | Candidate | `camille@hireloop.test` | `Camille2026!` |
 | Candidat | `alex@hireloop.test` | `Alex2026!` |
+| Campany | `company@test.com` | `Company123!` |
 
 Les entreprises, offres et personnes sont **fictives**. L'initialisation fournit 6 entreprises, 6 catégories, 12 offres, 3 personnes et 3 candidatures.
 
