@@ -27,5 +27,9 @@ backup strategy.
 Verify `/api/stats`, login, registration, job creation, and application submission
 after deployment, then restart the service and confirm records remain.
 Render terminates HTTPS and `COOKIE_SECURE=1` secures session cookies.
+`TRUST_PROXY=1` makes rate limits use the visitor's address. After deploying,
+open the site from two different networks and confirm that Render's logs show a
+different public address for each. If they show the same address, the limits are
+shared between visitors, so correct this before opening the site to real users.
 The app retains its existing standard-library HTTP server; this configuration
 does not constitute a production security or load audit.

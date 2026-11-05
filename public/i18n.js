@@ -90,15 +90,13 @@ Découvrir leurs offres ↗|Explore their jobs ↗
 On fait connaissance ?|Let’s get to know you
 Vous postulez avec le profil de|You are applying with the profile of
 Modifier mon profil|Edit my profile
-Présentez-vous en quelques mots. Vous pouvez aussi|Introduce yourself in a few words. You can also
-vous connecter|sign in
-pour utiliser votre profil.|to use your profile.
+Connectez-vous ou créez un compte pour postuler. Votre candidature utilisera les informations de votre profil.|Sign in or create an account to apply. Your application will use your profile details.
 Nom complet *|Full name *
 Adresse e-mail *|Email address *
 Téléphone|Phone
 Votre message au recruteur *|Your message to the recruiter *
 Pourquoi cette opportunité vous donne-t-elle envie de nous rejoindre ?|Why does this opportunity make you want to join us?
-Les informations saisies seront enregistrées et consultables par l’administrateur pour traiter votre candidature.|Your information will be saved and available to the administrator to process your application.
+Les informations de votre profil et votre message seront enregistrés et consultables par l’administrateur pour traiter votre candidature.|Your profile details and message will be saved and available to the administrator to process your application.
 Envoyer ma candidature ↗|Send my application ↗
 Annuler|Cancel
 Le premier pas est fait ✓|You’ve taken the first step ✓
@@ -232,7 +230,9 @@ Adresse e-mail ou mot de passe incorrect.|Incorrect email address or password.
 Trop de tentatives. Réessayez dans cinq minutes.|Too many attempts. Try again in five minutes.
 Votre mot de passe actuel est requis pour ce changement.|Your current password is required for this change.
 Votre message doit contenir entre 20 et 12 000 caractères.|Your message must contain between 20 and 12,000 characters.
-Un compte existe avec cet e-mail. Connectez-vous pour postuler.|An account already uses this email. Sign in to apply.
+Connectez-vous pour postuler.|Sign in to apply.
+Trop d’inscriptions depuis cette adresse. Réessayez plus tard.|Too many sign-ups from this address. Try again later.
+Trop de candidatures envoyées. Réessayez plus tard.|Too many applications sent. Try again later.
 Votre candidature a été enregistrée et est accessible au recruteur.|Your application has been saved and is available to the recruiter.
 Connectez-vous pour accéder à cette page.|Sign in to access this page.
 Cet espace est réservé aux administrateurs.|This area is reserved for administrators.
