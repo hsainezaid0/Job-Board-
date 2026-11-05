@@ -16,6 +16,8 @@ services:
         value: "1"
       - key: COOKIE_SECURE
         value: "1"
+      - key: TRUST_PROXY
+        value: "1"
       - key: JOBBOARD_ENV
         value: production
       - key: JOBBOARD_DB
