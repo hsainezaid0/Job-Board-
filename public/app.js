@@ -428,12 +428,19 @@ async function renderJob(id, apply) {
 function showApply(job, scroll) {
   const target = $('#apply-section');
   target.hidden = false;
-  target.innerHTML = `<h2>On fait connaissance ?</h2><p class="note">${state.user ? `Vous postulez avec le profil de <strong>${esc(state.user.name)}</strong> (${esc(state.user.email)}). <a href="#account">Modifier mon profil</a>` : 'Présentez-vous en quelques mots. Vous pouvez aussi <a href="#login" style="text-decoration:underline">vous connecter</a> pour utiliser votre profil.'}</p><form id="apply-form"><div class="form-grid"><label class="field">Nom complet *<input name="name" required maxlength="120" autocomplete="name" value="${esc((state.user && state.user.name) || '')}"></label><label class="field">Adresse e-mail *<input type="email" name="email" required maxlength="250" autocomplete="email" value="${esc((state.user && state.user.email) || '')}"></label><label class="field wide">Téléphone<input type="tel" name="phone" maxlength="40" autocomplete="tel" value="${esc((state.user && state.user.phone) || '')}"></label><label class="field wide">Votre message au recruteur *<textarea name="message" required minlength="20" maxlength="12000" placeholder="Pourquoi cette opportunité vous donne-t-elle envie de nous rejoindre ?"></textarea></label></div><p class="note">Les informations saisies seront enregistrées et consultables par l’administrateur pour traiter votre candidature.</p><p class="form-error" role="alert" hidden></p><div class="form-actions"><button class="btn" type="submit">Envoyer ma candidature ↗</button><button class="link-button muted" type="button" id="cancel-apply">Annuler</button></div></form>`;
+  if (state.user) {
+    target.innerHTML = `<h2>On fait connaissance ?</h2><p class="note">Vous postulez avec le profil de <strong>${esc(state.user.name)}</strong> (${esc(state.user.email)}). <a href="#account">Modifier mon profil</a></p><form id="apply-form"><div class="form-grid"><label class="field wide">Votre message au recruteur *<textarea name="message" required minlength="20" maxlength="12000" placeholder="Pourquoi cette opportunité vous donne-t-elle envie de nous rejoindre ?"></textarea></label></div><p class="note">Les informations de votre profil et votre message seront enregistrés et consultables par l’administrateur pour traiter votre candidature.</p><p class="form-error" role="alert" hidden></p><div class="form-actions"><button class="btn" type="submit">Envoyer ma candidature ↗</button><button class="link-button muted" type="button" id="cancel-apply">Annuler</button></div></form>`;
+  } else {
+    // Revenir à cette offre après la connexion ou l'inscription.
+    state.afterAuth = `job/${job.id}/apply`;
+    target.innerHTML = `<h2>On fait connaissance ?</h2><p class="note">Connectez-vous ou créez un compte pour postuler. Votre candidature utilisera les informations de votre profil.</p><div class="form-actions"><a class="btn" href="#login">Se connecter</a><a class="btn secondary" href="#register">Créer un compte</a><button class="link-button muted" type="button" id="cancel-apply">Annuler</button></div>`;
+  }
   $('#cancel-apply').onclick = function () {
     target.hidden = true;
     $('#show-apply').focus();
   };
-  $('#apply-form').onsubmit = async function (e) {
+  const applyForm = $('#apply-form');
+  if (applyForm) applyForm.onsubmit = async function (e) {
     e.preventDefault();
     await submit(e.currentTarget, async function (data) {
       const result = await api(`/ads/${job.id}/applications`, 'POST', data);
@@ -449,7 +456,7 @@ function showApply(job, scroll) {
       behavior: 'smooth',
       block: 'start',
     });
-    const firstField = $('input, textarea', target);
+    const firstField = $('textarea, .btn', target);
     if (firstField) {
       firstField.focus({
         preventScroll: true,
@@ -492,7 +499,7 @@ function renderAuth(register = false) {
       if (isAdmin()) {
         location.hash = 'admin';
       } else {
-        location.hash = 'jobs';
+        location.hash = state.afterAuth || 'jobs';
       }
       toast(register ? 'Bienvenue sur HireLoop. Votre compte est prêt !' : 'Vous êtes connecté.');
     });
@@ -1065,6 +1072,9 @@ async function route() { // choisir l’écran à afficher
   const sequence = routeSequence;
   const parts = (location.hash.slice(1) || 'jobs').split('/');
   const page = parts[0];
+  if (page !== 'login' && page !== 'register') {
+    state.afterAuth = null;
+  }
   for (const a of document.querySelectorAll('[data-nav]')) {
     a.classList.toggle(
       'active',
