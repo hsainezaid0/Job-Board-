@@ -2,6 +2,17 @@
 
 Application complète réalisée à partir des sujets **Job Board Bootstrap** et **Job Board Project** : frontend JavaScript, API REST Python et base relationnelle SQLite persistante.
 
+## Mise à jour du 5 novembre 2026 — Français / English
+
+- Ajout d’un sélecteur **FR / EN** à droite de la barre de navigation, après les boutons du compte.
+- Le français reste la langue par défaut. Le choix de langue est mémorisé dans le navigateur (`localStorage`) lorsqu’il est disponible.
+- Traduction des textes d’interface : navigation, recherche et filtres, formulaires, profil, candidatures, administration, notifications et messages d’erreur répertoriés.
+- Le changement de langue s’effectue sans recharger la page et conserve les champs saisis ainsi que les valeurs des filtres.
+- Les dates affichées sont adaptées à la langue choisie. Les titres et descriptions des offres ainsi que les textes rédigés par les recruteurs restent dans leur langue d’origine.
+- Les contrôles FR / EN indiquent la langue active aux technologies d’assistance ; la langue du document est également mise à jour.
+
+**Rôle candidat :** les deux comptes de démonstration Camille et Alex ont le même rôle technique `candidate` et les mêmes permissions. En français, « Candidate » et « Candidat » désignent ici les formes féminine et masculine du même rôle ; « Candidate » est aussi le libellé anglais de ce rôle.
+
 ## Démarrage en 30 secondes
 
 Prérequis : **Python 3.10 ou supérieur**. Aucune installation de bibliothèque, aucun npm, aucune clé API ni connexion Internet nécessaire.
@@ -45,7 +56,7 @@ Les entreprises, offres et personnes sont **fictives**. L'initialisation fournit
 - Redirection après connexion : administrateur vers l'administration, candidat vers les offres.
 - Administration protégée côté serveur : consultation, création, modification et suppression des **offres, entreprises, catégories, personnes et candidatures**. Formulaires avec listes de références et pagination des tables.
 - Mise à jour du statut d'une candidature : reçue, en cours, entretien, acceptée ou refusée.
-- Interface française responsive, navigation clavier, labels de formulaires, états vides, erreurs et confirmations intégrées.
+- Interface bilingue français / anglais responsive, navigation clavier, labels de formulaires, états vides, erreurs et confirmations intégrées.
 
 **Réception des candidatures :** les messages sont enregistrés dans SQLite et visibles dans l'onglet Candidatures de l'administration. Il n'y a pas d'envoi SMTP ni de simulation d'envoi d'e-mail ; `email_status = Enregistré` indique uniquement la conservation du message. Aucun CV n'est demandé par le sujet et aucun téléversement n'est implémenté.
 
@@ -61,8 +72,10 @@ jobboard/
     index.html           Structure HTML et navigation
     style.css            Identité visuelle et responsive
     app.js               Vues, fetch, formulaires et administration
+    i18n.js              Traductions FR/EN et préférence de langue
     favicon.svg          Icône locale
   tests/test_api.py      Tests d'intégration HTTP sur base temporaire
+  tests/test_i18n.cjs    Tests de traduction et de conservation des saisies
   docs/queries.sql       Les trois requêtes SQL du bootstrap
   docs/VALIDATION.md     Vérifications et parcours de démonstration
   data/                  Base et journaux locaux, exclus du livrable source
@@ -167,6 +180,16 @@ python -m unittest discover -s tests -v
 ```
 
 Les tests démarrent un serveur sur un port disponible et une base dans un dossier temporaire ; ils ne modifient pas les données de démonstration. Six scénarios couvrent plus de 100 requêtes HTTP : filtres, pagination, permissions anonymes/candidats, comptes, candidatures, validation, CRUD des cinq ressources, contraintes et origine des requêtes.
+
+### Tests de traduction
+
+Avec **Node.js 18 ou supérieur**, sans installation de dépendances :
+
+```sh
+node --test tests/test_i18n.cjs
+```
+
+Les cinq tests vérifient la langue par défaut et la préférence enregistrée, les textes dynamiques et dates, le retour au français, l’exclusion des contenus libres et la traduction des attributs accessibles sans modifier les valeurs des champs. Node.js est nécessaire uniquement pour ces tests, pas pour démarrer le site.
 
 Voir `docs/VALIDATION.md` pour le parcours de soutenance. Les trois requêtes SQL demandées dans le bootstrap sont fournies dans `docs/queries.sql`.
 
