@@ -1,158 +1,166 @@
 # HireLoop — Job Board
 
-Application complète réalisée à partir des sujets **Job Board Bootstrap** et **Job Board Project** : frontend JavaScript, API REST Python et base relationnelle SQLite persistante.
+A complete application built from the **Job Board Bootstrap** and **Job Board Project** assignments: a JavaScript frontend, a Python REST API, and a persistent SQLite relational database.
 
-## Mise à jour du 5 novembre 2026 — Français / English
+## Update of November 5, 2026 — French / English
 
-- Ajout d’un sélecteur **FR / EN** à droite de la barre de navigation, après les boutons du compte.
-- Le français reste la langue par défaut. Le choix de langue est mémorisé dans le navigateur (`localStorage`) lorsqu’il est disponible.
-- Traduction des textes d’interface : navigation, recherche et filtres, formulaires, profil, candidatures, administration, notifications et messages d’erreur répertoriés.
-- Le changement de langue s’effectue sans recharger la page et conserve les champs saisis ainsi que les valeurs des filtres.
-- Les dates affichées sont adaptées à la langue choisie. Les titres et descriptions des offres ainsi que les textes rédigés par les recruteurs restent dans leur langue d’origine.
-- Les contrôles FR / EN indiquent la langue active aux technologies d’assistance ; la langue du document est également mise à jour.
+- Added a **FR / EN** switcher on the right side of the navigation bar, after the account buttons.
+- French remains the default language. The language choice is saved in the browser (`localStorage`) when available.
+- Interface text is translated: navigation, search and filters, forms, profile, applications, administration, notifications, and listed error messages.
+- Switching languages happens without reloading the page and keeps entered fields and filter values.
+- Displayed dates are adapted to the selected language. Job titles and descriptions, as well as text written by recruiters, stay in their original language.
+- The FR / EN controls announce the active language to assistive technologies; the document language is also updated.
 
-**Rôle candidat :** les deux comptes de démonstration Camille et Alex ont le même rôle technique `candidate` et les mêmes permissions. En français, « Candidate » et « Candidat » désignent ici les formes féminine et masculine du même rôle ; « Candidate » est aussi le libellé anglais de ce rôle.
+**Candidate role:** the two demo accounts, Camille and Alex, have the same technical role `candidate` and the same permissions. In French, "Candidate" and "Candidat" are the feminine and masculine forms of the same role; in English, both are shown as "Candidate".
 
-## Démarrage en 30 secondes
+## Fixes of November 5, 2026
 
-Prérequis : **Python 3.10 ou supérieur**. Aucune installation de bibliothèque, aucun npm, aucune clé API ni connexion Internet nécessaire.
+- **First launch on a new database:** the demo data was inserted twice, which crashed the server with `UNIQUE constraint failed: people.email`. `seed.py` now inserts it once, so a fresh install starts on the first try.
+- **API tests:** the same crash stopped the whole suite during setup. All 10 tests now run and pass.
+- **Migration test:** `test_08` no longer matched the reformatted `schema.sql`, so it never built an old-style database. It now creates a real one and checks that the upgrade keeps existing data.
+- **Demo company account:** `company@test.com` was documented but missing from new databases. It is now part of the demo data, attached to Studio North, and covered by a test.
+- **README:** this English file is now the project's only README.
 
-Depuis le dossier `jobboard` :
+## Get started in 30 seconds
+
+Requirement: **Python 3.10 or later**. No library installation, no npm, no API key, and no Internet connection needed.
+
+From the `jobboard` folder:
 
 ```sh
 python server.py
 ```
 
-Sous Windows, on peut aussi double-cliquer sur **`run.cmd`**. Le lanceur détecte `py`, puis le Python fourni avec Codex s'il existe, puis `python`.
+On Windows, you can also double-click **`run.cmd`**. The launcher looks for `py`, then the Python bundled with Codex if present, then `python`.
 
-Ouvrir **http://127.0.0.1:8000**. Garder le terminal ouvert ; `Ctrl+C` arrête le serveur.
+Open **http://127.0.0.1:8000**. Keep the terminal open; `Ctrl+C` stops the server.
 
-Autre port :
+Different port:
 
 ```sh
 python server.py --port 8080
 ```
 
-La base est automatiquement créée dans `data/hireloop.sqlite3`, puis remplie **par le backend** uniquement au premier lancement. Les modifications restent enregistrées après un redémarrage.
+The database is automatically created in `data/hireloop.sqlite3`, then populated **by the backend** only on first launch. Changes persist across restarts.
 
-### Comptes de démonstration
+### Demo accounts
 
-| Accès | E-mail | Mot de passe |
+| Access | Email | Password |
 |---|---|---|
-| Administrateur | `admin@hireloop.test` | `Admin2026!` |
-| Candidate | `camille@hireloop.test` | `Camille2026!` |
-| Candidat | `alex@hireloop.test` | `Alex2026!` |
-| Campany | `company@test.com` | `Company123!` |
+| Administrator | `admin@hireloop.test` | `Admin2026!` |
+| Candidate (Camille) | `camille@hireloop.test` | `Camille2026!` |
+| Candidate (Alex) | `alex@hireloop.test` | `Alex2026!` |
+| Company | `company@test.com` | `Company123!` |
 
-Les entreprises, offres et personnes sont **fictives**. L'initialisation fournit 6 entreprises, 6 catégories, 12 offres, 3 personnes et 3 candidatures.
+All companies, job ads, and people are **fictional**. The initial data contains 6 companies, 6 categories, 12 job ads, 4 people, and 3 applications.
 
-## Fonctionnalités
+## Features
 
-- Offres paginées, recherche par métier/mot-clé/entreprise, filtres par ville, domaine, contrat et organisation ; tri par pertinence, date ou salaire.
-- Chaque offre présente un titre, un résumé, les conditions, un bouton **En savoir plus** et un bouton **Postuler**.
-- Détail complet chargé avec `fetch()`, sans rechargement de document et sans popup. Les fragments d'URL `#job/1` rendent les vues partageables et compatibles avec le bouton Retour.
-- Candidature anonyme (nom, e-mail, téléphone, message) ou avec un compte : les informations du compte sont automatiquement réutilisées.
-- Conservation du message, de la date, de l'offre, du candidat et du statut. Les candidatures en double sont refusées.
-- Inscription, connexion, déconnexion, modification du profil et du mot de passe ; suivi personnel des candidatures.
-- Redirection après connexion : administrateur vers l'administration, candidat vers les offres.
-- Administration protégée côté serveur : consultation, création, modification et suppression des **offres, entreprises, catégories, personnes et candidatures**. Formulaires avec listes de références et pagination des tables.
-- Mise à jour du statut d'une candidature : reçue, en cours, entretien, acceptée ou refusée.
-- Interface bilingue français / anglais responsive, navigation clavier, labels de formulaires, états vides, erreurs et confirmations intégrées.
+- Paginated job ads, search by job title/keyword/company, filters by city, field, contract type, and work arrangement; sorting by relevance, date, or salary.
+- Each ad shows a title, a summary, the conditions, a **Learn more** button, and an **Apply** button.
+- Full details loaded with `fetch()`, without reloading the document and without a popup. URL fragments such as `#job/1` make views shareable and compatible with the Back button.
+- Anonymous application (name, email, phone, message) or with an account: account details are reused automatically.
+- The message, date, job ad, candidate, and status are stored. Duplicate applications are rejected.
+- Sign-up, login, logout, profile and password editing; personal tracking of applications.
+- Redirect after login: administrators go to the admin area, candidates go to the job ads.
+- Server-side protected administration: view, create, edit, and delete **job ads, companies, categories, people, and applications**. Forms with reference dropdowns and paginated tables.
+- Application status updates: received, in progress, interview, accepted, or rejected.
+- Responsive bilingual French / English interface, keyboard navigation, form labels, empty states, built-in errors and confirmations.
 
-**Réception des candidatures :** les messages sont enregistrés dans SQLite et visibles dans l'onglet Candidatures de l'administration. Il n'y a pas d'envoi SMTP ni de simulation d'envoi d'e-mail ; `email_status = Enregistré` indique uniquement la conservation du message. Aucun CV n'est demandé par le sujet et aucun téléversement n'est implémenté.
+**Receiving applications:** messages are stored in SQLite and visible in the Applications tab of the admin area. There is no SMTP sending and no simulated email sending; `email_status = Enregistré` ("Saved") only indicates that the message was stored. The assignment does not require a CV, and no file upload is implemented.
 
 ## Architecture
 
 ```text
 jobboard/
-  server.py              Serveur HTTP, API, validation et authentification
-  schema.sql             Tables, clés étrangères, contraintes et index
-  seed.py                Données fictives insérées par le backend
-  run.cmd                Lanceur Windows
+  server.py              HTTP server, API, validation, and authentication
+  schema.sql             Tables, foreign keys, constraints, and indexes
+  seed.py                Fictional data inserted by the backend
+  run.cmd                Windows launcher
   public/
-    index.html           Structure HTML et navigation
-    style.css            Identité visuelle et responsive
-    app.js               Vues, fetch, formulaires et administration
-    i18n.js              Traductions FR/EN et préférence de langue
-    favicon.svg          Icône locale
-  tests/test_api.py      Tests d'intégration HTTP sur base temporaire
-  tests/test_i18n.cjs    Tests de traduction et de conservation des saisies
-  docs/queries.sql       Les trois requêtes SQL du bootstrap
-  docs/VALIDATION.md     Vérifications et parcours de démonstration
-  data/                  Base et journaux locaux, exclus du livrable source
+    index.html           HTML structure and navigation
+    style.css            Visual identity and responsive layout
+    app.js               Views, fetch, forms, and administration
+    i18n.js              FR/EN translations and language preference
+    favicon.svg          Local icon
+  tests/test_api.py      HTTP integration tests on a temporary database
+  tests/test_i18n.cjs    Translation and input-preservation tests
+  docs/queries.sql       The three SQL queries from the bootstrap
+  docs/VALIDATION.md     Checks and demo walkthrough
+  data/                  Local database and logs, excluded from the source deliverable
 ```
 
-Le navigateur communique exclusivement avec `/api`. Le serveur utilise la bibliothèque standard Python (`http.server`, `sqlite3`, `hashlib`). SQLite est une véritable base SQL avec jointures, contraintes, transactions et stockage sur disque. La même origine sert l'API et les ressources statiques.
+The browser communicates exclusively with `/api`. The server uses the Python standard library (`http.server`, `sqlite3`, `hashlib`). SQLite is a real SQL database with joins, constraints, transactions, and on-disk storage. The same origin serves both the API and the static assets.
 
-### Schéma relationnel
+### Relational schema
 
 ```mermaid
 erDiagram
-  companies ||--o{ ads : publie
-  categories ||--o{ ads : classe
+  companies ||--o{ ads : publishes
+  categories ||--o{ ads : classifies
   people ||--o{ ads : contact
-  people ||--o{ applications : candidate
-  ads ||--o{ applications : recoit
-  people ||--o{ sessions : possede
+  people ||--o{ applications : applies
+  ads ||--o{ applications : receives
+  people ||--o{ sessions : owns
 ```
 
-| Table | Principaux champs |
+| Table | Main fields |
 |---|---|
-| `companies` | nom, secteur, ville, site, description, couleur |
-| `categories` | nom unique |
-| `people` | nom, e-mail unique, téléphone, mot de passe haché facultatif, rôle |
-| `ads` | entreprise, catégorie, contact, titre, résumé, description, profil, ville, contrat, organisation, salaires, rythme, mise en avant, date |
-| `applications` | offre, personne, message, statut, trace d'enregistrement, date ; unicité personne/offre |
-| `sessions` | empreinte du jeton, personne, expiration |
+| `companies` | name, industry, city, website, description, color |
+| `categories` | unique name |
+| `people` | name, unique email, phone, optional hashed password, role |
+| `ads` | company, category, contact, title, summary, description, profile, city, contract, work arrangement, salaries, schedule, featured flag, date |
+| `applications` | ad, person, message, status, storage trace, date; unique per person/ad |
+| `sessions` | token hash, person, expiration |
 
-Une candidature anonyme crée une personne sans mot de passe. Une adresse associée à un compte exige une connexion pour éviter l'usurpation. La création d'un compte avec une adresse déjà connue est refusée ; la récupération et la vérification par e-mail ne font pas partie de cette version locale.
+An anonymous application creates a person without a password. An email address tied to an account requires logging in, to prevent impersonation. Creating an account with an already known address is rejected; password recovery and email verification are not part of this local version.
 
-Supprimer une offre ou une personne efface ses candidatures par cascade. Supprimer une entreprise, catégorie ou personne encore référencée comme contact d'une offre est refusé (`409`). Le dernier administrateur et la suppression de son propre compte sont protégés. La table technique `sessions` n'est pas exposée au CRUD pour éviter de divulguer les jetons.
+Deleting a job ad or a person deletes its applications by cascade. Deleting a company, category, or person still referenced as an ad's contact is rejected (`409`). The last administrator is protected, and administrators cannot delete their own account. The technical `sessions` table is not exposed through CRUD, to avoid leaking tokens.
 
-## API REST
+## REST API
 
-Toutes les routes sont préfixées par **`/api`**. Corps de requête en JSON avec `Content-Type: application/json`. Les réponses d'erreur ont la forme `{"error":"Explication"}`. Les listes sont généralement `{items,total,page,limit}` ; pagination `?page=1&limit=6`, limite maximale 100.
+All routes are prefixed with **`/api`**. Request bodies are JSON with `Content-Type: application/json`. Error responses have the form `{"error":"Explanation"}`. Lists are generally `{items,total,page,limit}`; pagination `?page=1&limit=6`, maximum limit 100.
 
-### Routes publiques et compte
+### Public and account routes
 
-| Méthode | Route | Fonction |
+| Method | Route | Purpose |
 |---|---|---|
-| GET | `/health` | Disponibilité de l'API et de SQLite |
-| GET | `/ads` | Offres filtrées et paginées |
-| GET | `/ads/:id` | Détail complet d'une offre |
-| GET | `/companies/:id/ads` | Offres d'une entreprise |
-| GET | `/meta` | Entreprises (ID/nom), catégories et villes pour les filtres |
-| GET | `/stats` | Nombre d'offres, entreprises, personnes et candidatures |
-| POST | `/ads/:id/applications` | Postuler, avec ou sans session |
-| POST | `/auth/register` | Créer un compte candidat et ouvrir une session |
-| POST | `/auth/login` | Ouvrir une session |
-| POST | `/auth/logout` | Révoquer la session |
-| GET | `/auth/me` | Compte courant ou `null` |
-| PATCH | `/account` | Modifier son profil (session requise) |
-| GET | `/my-applications` | Ses candidatures uniquement (session requise) |
+| GET | `/health` | API and SQLite availability |
+| GET | `/ads` | Filtered, paginated job ads |
+| GET | `/ads/:id` | Full details of a job ad |
+| GET | `/companies/:id/ads` | A company's job ads |
+| GET | `/meta` | Companies (ID/name), categories, and cities for filters |
+| GET | `/stats` | Number of job ads, companies, people, and applications |
+| POST | `/ads/:id/applications` | Apply, with or without a session |
+| POST | `/auth/register` | Create a candidate account and open a session |
+| POST | `/auth/login` | Open a session |
+| POST | `/auth/logout` | Revoke the session |
+| GET | `/auth/me` | Current account or `null` |
+| PATCH | `/account` | Edit own profile (session required) |
+| GET | `/my-applications` | Own applications only (session required) |
 
-Filtres `/ads` : `q`, `location`, `category_id`, `company_id`, `contract`, `work_mode`. Tri : `sort=relevant`, `sort=recent`, `sort=salary`. Les filtres se combinent avec ET ; recherche texte avec `LIKE` SQLite (la recherche des accents suit le comportement natif SQLite).
+`/ads` filters: `q`, `location`, `category_id`, `company_id`, `contract`, `work_mode`. Sorting: `sort=relevant`, `sort=recent`, `sort=salary`. Filters are combined with AND; text search uses SQLite `LIKE` (accent matching follows native SQLite behavior).
 
-### CRUD administrateur
+### Admin CRUD
 
-Pour chacune des ressources **`companies`, `categories`, `people`, `ads`, `applications`** :
+For each of the resources **`companies`, `categories`, `people`, `ads`, `applications`**:
 
-| Méthode | Route | Fonction |
+| Method | Route | Purpose |
 |---|---|---|
-| GET | `/:resource` | Liste paginée |
-| GET | `/:resource/:id` | Lire un enregistrement |
-| POST | `/:resource` | Créer un enregistrement |
-| PATCH | `/:resource/:id` | Modifier les champs fournis |
-| PUT | `/:resource/:id` | Mettre à jour avec tous les champs obligatoires |
-| DELETE | `/:resource/:id` | Supprimer un enregistrement |
+| GET | `/:resource` | Paginated list |
+| GET | `/:resource/:id` | Read a record |
+| POST | `/:resource` | Create a record |
+| PATCH | `/:resource/:id` | Update the provided fields |
+| PUT | `/:resource/:id` | Update with all required fields |
+| DELETE | `/:resource/:id` | Delete a record |
 
-Exception : la consultation des offres reste publique. Les autres opérations CRUD exigent une session administrateur, même si l'URL est saisie directement. Les listes de personnes ne renvoient jamais les empreintes de mot de passe.
+Exception: viewing job ads remains public. All other CRUD operations require an administrator session, even when the URL is entered directly. People lists never return password hashes.
 
-Champs d'écriture : consulter `RESOURCES` et `REQUIRED` dans `server.py` ainsi que `schema.sql`. `id` et `created_at` sont gérés par le serveur. Un mot de passe facultatif peut être transmis lors du CRUD de personnes ; un compte sans mot de passe ne peut pas se connecter.
+Writable fields: see `RESOURCES` and `REQUIRED` in `server.py`, as well as `schema.sql`. `id` and `created_at` are managed by the server. An optional password can be sent through the people CRUD; an account without a password cannot log in.
 
-### Exemples curl
+### curl examples
 
-Sous PowerShell, employer `curl.exe` si `curl` désigne une commande PowerShell. Ces exemples sont écrits pour un terminal POSIX ; on peut aussi utiliser Postman ou Insomnia avec les mêmes corps JSON.
+In PowerShell, use `curl.exe` if `curl` refers to a PowerShell command. These examples are written for a POSIX terminal; you can also use Postman or Insomnia with the same JSON bodies.
 
 ```sh
 curl 'http://127.0.0.1:8000/api/ads?contract=CDI&location=Paris'
@@ -172,45 +180,44 @@ curl -H 'Content-Type: application/json' \
   http://127.0.0.1:8000/api/ads/1/applications
 ```
 
-Codes : `200` succès ; `201` création ; `400` données invalides ; `401` session absente/identifiants incorrects ; `403` accès administrateur refusé/origine invalide ; `404` ressource absente ; `405` méthode non autorisée ; `409` doublon/relation bloquante ; `413` corps trop grand ; `415` type de contenu incorrect ; `429` trop de tentatives de connexion.
+Status codes: `200` success; `201` created; `400` invalid data; `401` missing session/wrong credentials; `403` admin access denied/invalid origin; `404` resource not found; `405` method not allowed; `409` duplicate/blocking relation; `413` body too large; `415` wrong content type; `429` too many login attempts.
 
-## Tests et démonstration
+## Tests and demo
 
 ```sh
 python -m unittest discover -s tests -v
 ```
 
-Les tests démarrent un serveur sur un port disponible et une base dans un dossier temporaire ; ils ne modifient pas les données de démonstration. Six scénarios couvrent plus de 100 requêtes HTTP : filtres, pagination, permissions anonymes/candidats, comptes, candidatures, validation, CRUD des cinq ressources, contraintes et origine des requêtes.
+The tests start a server on a free port with a database in a temporary folder; they do not modify the demo data. Ten tests cover more than 100 HTTP requests: filters, pagination, anonymous/candidate permissions, accounts, applications, validation, CRUD on all five resources, constraints, and request origin.
 
-### Tests de traduction
+### Translation tests
 
-Avec **Node.js 18 ou supérieur**, sans installation de dépendances :
+With **Node.js 18 or later**, no dependency installation needed:
 
 ```sh
 node --test tests/test_i18n.cjs
 ```
 
-Les cinq tests vérifient la langue par défaut et la préférence enregistrée, les textes dynamiques et dates, le retour au français, l’exclusion des contenus libres et la traduction des attributs accessibles sans modifier les valeurs des champs. Node.js est nécessaire uniquement pour ces tests, pas pour démarrer le site.
+The five tests check the default language and saved preference, dynamic text and dates, switching back to French, the exclusion of free-form content, and the translation of accessibility attributes without altering field values. Node.js is only needed for these tests, not for running the site.
 
-Voir `docs/VALIDATION.md` pour le parcours de soutenance. Les trois requêtes SQL demandées dans le bootstrap sont fournies dans `docs/queries.sql`.
+See `docs/VALIDATION.md` for the presentation walkthrough. The three SQL queries required by the bootstrap are in `docs/queries.sql`.
 
-## Configuration et limites de déploiement
+## Configuration and deployment limits
 
-- `JOBBOARD_DB` : chemin alternatif de base SQLite. Exemple PowerShell : `$env:JOBBOARD_DB='C:\temp\hireloop.sqlite3'` avant le démarrage.
-- `--host` : adresse d'écoute, `127.0.0.1` par défaut. Le projet est livré pour une exécution locale.
-- `COOKIE_SECURE=1` : ajoute l'attribut Secure aux cookies pour une installation derrière HTTPS ; ne pas activer en HTTP local.
-- Mots de passe PBKDF2-HMAC-SHA256 (260 000 itérations et sel aléatoire), jetons de session aléatoires stockés sous forme d'empreinte SHA-256, cookies HttpOnly/SameSite=Lax, expiration 24 h, requêtes SQL paramétrées, contrôle d'origine, liste blanche des champs et politique CSP.
-- La connexion est limitée à 15 tentatives par IP sur cinq minutes. Cette limitation en mémoire revient à zéro au redémarrage.
-- Les comptes de démonstration et le serveur HTTP de la bibliothèque standard sont destinés au développement et à l'évaluation locale. Un déploiement Internet demande un serveur/reverse proxy adapté, HTTPS et le remplacement des comptes de démonstration. Aucune publication externe n'est effectuée.
-- Aucun SMTP, récupération de mot de passe, vérification d'e-mail, stockage de CV ni collecte automatique d'offres externes n'est configuré. Le sujet détaillé est couvert par la gestion des offres dans l'administration.
+- `JOBBOARD_DB`: alternative SQLite database path. PowerShell example: `$env:JOBBOARD_DB='C:\temp\hireloop.sqlite3'` before starting.
+- `--host`: listening address, `127.0.0.1` by default. The project is delivered for local execution.
+- `COOKIE_SECURE=1`: adds the Secure attribute to cookies for an installation behind HTTPS; do not enable over local HTTP.
+- PBKDF2-HMAC-SHA256 passwords (260,000 iterations and a random salt), random session tokens stored as SHA-256 hashes, HttpOnly/SameSite=Lax cookies, 24-hour expiration, parameterized SQL queries, origin checks, field allowlist, and a CSP policy.
+- Login is limited to 15 attempts per IP over five minutes. This in-memory limit resets on restart.
+- The demo accounts and the standard-library HTTP server are intended for development and local evaluation. An Internet deployment requires a suitable server/reverse proxy, HTTPS, and replacing the demo accounts. Nothing is published externally.
+- No SMTP, password recovery, email verification, CV storage, or automatic collection of external job ads is configured. The detailed assignment is covered by job ad management in the admin area.
 
-Pour repartir de zéro, arrêter le serveur, sauvegarder puis déplacer `data/hireloop.sqlite3` (et les éventuels fichiers `-wal`/`-shm`) ; au prochain lancement une nouvelle base de démonstration sera créée.
+To start from scratch, stop the server, back up and then move `data/hireloop.sqlite3` (and any `-wal`/`-shm` files); a new demo database will be created on the next launch.
 
+## Project and company administration
 
-## Administration du projet et des entreprises
+The `admin` role administers the entire project. The `company_admin` role is tied to a company via `company_id`: it can edit its company profile, create/edit/delete its job ads, and view received applications with candidates' contact details, then change their status. It cannot manage accounts, roles, or categories. These checks are enforced in the API, including on direct access by ID. Public job ads remain visible to everyone.
 
-Le rôle `admin` administre tout le projet. Le rôle `company_admin` est rattaché à une entreprise via `company_id` : il peut modifier sa fiche, créer/modifier/supprimer ses offres et consulter les candidatures reçues avec les coordonnées des candidats, puis modifier leur statut. Il ne peut pas gérer les comptes, les rôles ou les catégories. Les contrôles sont appliqués dans l’API, y compris sur les accès directs par identifiant. Les offres publiques restent visibles par tous.
+To assign this role: log in as the project administrator, open **Administration → People**, create or edit an account, choose **Company administrator**, select its company, and save. For a new account, set a password so it can log in. Several administrators can be attached to the same company.
 
-Pour attribuer ce rôle : connectez-vous comme administrateur du projet, ouvrez **Administration → Personnes**, créez ou modifiez un compte, choisissez **Administrateur d’entreprise**, sélectionnez son entreprise et enregistrez. Pour un nouveau compte, renseignez un mot de passe afin de permettre la connexion. Plusieurs administrateurs peuvent être rattachés à la même entreprise.
-
-Redémarrez le serveur après la mise à jour : la base existante est migrée automatiquement en conservant les comptes, les identifiants et les relations. L’administrateur existant conserve son accès global.
+Restart the server after updating: the existing database is migrated automatically, keeping accounts, IDs, and relationships. The existing administrator keeps global access.
