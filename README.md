@@ -33,8 +33,7 @@ A complete application built from the **Job Board Bootstrap** and **Job Board Pr
 
 - Email addresses are not verified, so someone could still register with another person's address and apply.
 - Limits are kept in memory and reset when the server restarts. People sharing one network, such as a classroom, also share the per-address limits.
-- On Render, `TRUST_PROXY=1` has not yet been confirmed on a live deployment. Follow the check in `docs/DEPLOYMENT.md` after deploying.
-- Demo accounts with public passwords are installed unless `JOBBOARD_ENV=production` is set, so always set it on a public server.
+- The project runs locally only. Its demo accounts have public passwords, so do not expose it to the Internet as it is.
 
 ## Get started in 30 seconds
 
