@@ -182,6 +182,34 @@ class APITest(unittest.TestCase):
         self.request('/people/' + str(person['id']), 'PATCH', {'role':'candidate'})
         self.assertIsNone(self.request('/people/' + str(person['id']))['company_id'])
 
+    def test_09_sorting_and_pagination_preserve_results(self):
+        from contextlib import closing
+
+        with closing(server.connect()) as db:
+            offers = [dict(row) for row in db.execute('SELECT * FROM ads')]
+            orders = {
+                'relevant': lambda row: (row['featured'], row['created_at'], row['id']),
+                'recent': lambda row: (row['created_at'], row['id']),
+                'salary': lambda row: (row['salary_max'], row['id']),
+                'unknown': lambda row: row['id'],
+            }
+            for sort, key in orders.items():
+                with self.subTest(sort=sort):
+                    expected = [row['id'] for row in sorted(offers, key=key, reverse=True)]
+                    actual = []
+                    for page in range(1, (len(offers) + 2) // 3 + 1):
+                        result = self.request(f'/ads?sort={sort}&page={page}&limit=3')
+                        self.assertEqual(result['total'], len(offers))
+                        actual.extend(row['id'] for row in result['items'])
+                    self.assertEqual(actual, expected)
+
+            filtered = self.request('/ads?company_id=1&location=Paris&limit=100')
+            expected = {row['id'] for row in offers if row['company_id'] == 1 and row['location'] == 'Paris'}
+            self.assertEqual({row['id'] for row in filtered['items']}, expected)
+            self.assertEqual(filtered['total'], len(expected))
+            self.assertEqual(self.request('/ads?page=999999')['items'], [])
+            self.assertEqual(self.request('/ads?limit=1000')['limit'], 100)
+
     def test_08_legacy_migration_preserves_relations(self):
         import sqlite3
         db = sqlite3.connect(':memory:')

@@ -1,5 +1,7 @@
 PRAGMA foreign_keys = ON;
 
+-- ON DELETE RESTRICT Empêcher la suppression si des données liées existent
+
 CREATE TABLE
     IF NOT EXISTS people (
         id INTEGER PRIMARY KEY,
@@ -8,9 +10,18 @@ CREATE TABLE
         phone TEXT NOT NULL DEFAULT '',
         password_hash TEXT,
         role TEXT NOT NULL DEFAULT 'candidate' CHECK (role IN ('candidate', 'admin', 'company_admin')),
-        company_id INTEGER REFERENCES companies(id) ON DELETE RESTRICT,
-        created_at TEXT NOT NULL DEFAULT (strftime ('%Y-%m-%dT%H:%M:%SZ', 'now')),
-        CHECK ((role = 'company_admin' AND company_id IS NOT NULL) OR (role <> 'company_admin' AND company_id IS NULL))
+        company_id INTEGER REFERENCES companies (id) ON DELETE RESTRICT,
+        created_at TEXT NOT NULL DEFAULT (strftime ('%Y-%m-%dT%H:%M:%SZ', 'now')), --strftime est une fonction SQLite qui permet de formater une date.
+        CHECK (
+            (
+                role = 'company_admin'
+                AND company_id IS NOT NULL
+            )
+            OR (
+                role <> 'company_admin'
+                AND company_id IS NULL
+            )
+        )
     );
 
 CREATE TABLE
@@ -79,10 +90,38 @@ CREATE TABLE
         expires_at INTEGER NOT NULL
     );
 
+
+--accélérer les recherches, les filtres et les tris dans ta base de données SQLite
+
+
+
+-- Accélérer la recherche des offres par entreprise
 CREATE INDEX IF NOT EXISTS idx_ads_company ON ads (company_id);
 
+-- Accélérer la recherche des offres par catégorie
 CREATE INDEX IF NOT EXISTS idx_ads_category ON ads (category_id);
 
+-- Accélérer la recherche des candidatures d'un utilisateur
 CREATE INDEX IF NOT EXISTS idx_applications_person ON applications (person_id);
 
+-- Accélérer la recherche des candidatures pour une offre
 CREATE INDEX IF NOT EXISTS idx_applications_ad ON applications (ad_id);
+
+-- Afficher les offres mises en avant en premier, puis les plus récentes
+CREATE INDEX IF NOT EXISTS idx_ads_relevant ON ads (featured DESC, created_at DESC, id DESC);
+
+-- Afficher les offres les plus récentes en premier
+CREATE INDEX IF NOT EXISTS idx_ads_recent ON ads (created_at DESC, id DESC);
+
+-- Afficher les offres avec les salaires les plus élevés en premier
+CREATE INDEX IF NOT EXISTS idx_ads_salary ON ads (salary_max DESC, id DESC);
+
+-- Avoid scanning sessions when deleting a person or expiring old logins.
+
+
+-- Accélérer la recherche des sessions d'un utilisateur
+CREATE INDEX IF NOT EXISTS idx_sessions_person ON sessions (person_id);
+
+-- Accélérer la recherche des sessions expirées
+CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions (expires_at);
+
