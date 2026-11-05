@@ -77,11 +77,7 @@ function money(n) { // money() et date() : présenter les valeurs et les dates d
   return new Intl.NumberFormat('fr-FR').format(n);
 }
 function date(v) { // date() : présenter les valeurs et les dates dans le format français.
-  return new Intl.DateTimeFormat('fr-FR', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(new Date(v)); // date('2026-11-03'); = "3 nov. 2026"
+  return localizedDate(v);
 }
 
 function options(rows, selected = '', empty = 'Sélectionner') { //construire une liste déroulante

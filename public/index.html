@@ -9,7 +9,8 @@
   <title>HireLoop — Le prochain chapitre commence ici.</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/style.css">
-  <script src="/app.js?v=application-contacts-1" defer></script>
+  <script src="/i18n.js?v=1" defer></script>
+  <script src="/app.js?v=bilingual-1" defer></script>
 </head>
 
 <body>
@@ -21,7 +22,13 @@
       <nav aria-label="Navigation principale"><a href="#jobs" data-nav="jobs">Les offres <span
             class="nav-dot"></span></a><a href="#companies" data-nav="companies">Les entreprises</a><a
           href="#applications" data-nav="applications" class="signed-only" hidden>Mes candidatures</a></nav>
-      <div class="header-actions" id="auth-nav"></div>
+      <div class="header-actions">
+        <div class="header-actions" id="auth-nav"></div>
+        <div class="language-switch" role="group" aria-label="Langue / Language">
+          <button type="button" data-language="fr" lang="fr" aria-label="Français" aria-pressed="true">FR</button>
+          <button type="button" data-language="en" lang="en" aria-label="English" aria-pressed="false">EN</button>
+        </div>
+      </div>
     </div>
   </header>
   <main id="main" tabindex="-1"></main>
