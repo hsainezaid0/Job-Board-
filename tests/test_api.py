@@ -5,6 +5,7 @@ import sys
 import tempfile
 import threading
 import unittest
+import unittest.mock
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -28,6 +29,7 @@ class APITest(unittest.TestCase):
         cls.temp.cleanup()
 
     def setUp(self):
+        self.server.rate_hits.clear()
         self.client = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
 
     def request(self,path,method='GET',data=None,expected=200,headers=None):
@@ -80,12 +82,11 @@ class APITest(unittest.TestCase):
         self.request('/account','PATCH',{'email':'changed@example.test','current_password':{}},400)
         self.request('/account','PATCH',{'email':'changed@example.test'},400)
         self.request('/account','PATCH',{'name':'Updated Candidate','phone':'0611223344'})
-        application = self.request('/ads/2/applications','POST',{'name':'Application Name','email':'contact@example.test','phone':'0612345678','message':'Je suis intéressé par cette offre et souhaite rencontrer votre équipe.'},201)['application']
-        self.assertEqual(application['applicant_name'], 'Application Name')
-        self.assertEqual(application['applicant_email'], 'contact@example.test')
-        self.assertEqual(application['applicant_phone'], '0612345678')
-        self.assertEqual(self.request('/auth/me')['user']['email'], 'new@example.test')
-        self.request('/ads/3/applications','POST',{'email':'invalid','message':'Un message suffisamment long pour cette candidature.'},400)
+        application = self.request('/ads/2/applications','POST',{'message':'Je suis intéressé par cette offre et souhaite rencontrer votre équipe.'},201)['application']
+        self.assertEqual(application['applicant_name'], 'Updated Candidate')
+        self.assertEqual(application['applicant_email'], 'new@example.test')
+        self.assertEqual(application['applicant_phone'], '0611223344')
+        self.request('/ads/3/applications','POST',{'name':'Someone Else','email':'other@example.test','message':'Un message suffisamment long pour cette candidature.'},400)
         self.request('/ads/2/applications','POST',{'message':'Deuxième tentative de candidature pour la même offre.'},409)
         self.assertEqual(len(self.request('/my-applications')['items']),1)
         self.request('/auth/logout','POST',{})
@@ -96,13 +97,14 @@ class APITest(unittest.TestCase):
         self.request('/auth/logout','POST',{})
         self.request('/auth/login','POST',{'email':'new@example.test','password':'NewPassword2026!'})
 
-    def test_04_guest_application_and_validation(self):
-        self.request('/ads/1/applications','POST',{'name':'Guest','email':'guest@example.test','phone':'060000','message':'Bonjour, je souhaite vous rejoindre pour participer à vos projets.'},201)
-        self.request('/ads/1/applications','POST',{'name':'Guest','email':'guest@example.test','message':'Bonjour, voici une nouvelle candidature pour votre équipe.'},409)
-        self.request('/ads/1/applications','POST',{'name':'Camille','email':'camille@hireloop.test','message':'Bonjour, je souhaite vous rejoindre pour participer à vos projets.'},409)
-        self.request('/ads/1/applications','POST',{'message':'court'},400)
-        self.request('/ads/1/applications','POST',{'name':'Guest','email':'bad','message':'Un message suffisamment long pour que le test soit valide.'},400)
-        self.request('/ads/999999/applications','POST',{},404)
+    def test_04_application_requires_account_and_validation(self):
+        message = 'Bonjour, je souhaite vous rejoindre pour participer à vos projets.'
+        self.request('/ads/1/applications','POST',{'name':'Guest','email':'guest@example.test','phone':'060000','message':message},401)
+        self.request('/ads/1/applications','POST',{'name':'Camille','email':'camille@hireloop.test','message':message},401)
+        self.request('/auth/login','POST',{'email':'camille@hireloop.test','password':'Camille2026!'})
+        self.request('/ads/2/applications','POST',{'message':'court'},400)
+        self.request('/ads/999999/applications','POST',{'message':message},404)
+        self.request('/auth/logout','POST',{})
         self.request('/auth/register','POST',{'name':'A','email':'invalid','password':'Password2026!'},400)
         self.request('/auth/register','POST',{'name':'A','email':'a@test.fr','password':'short'},400)
         self.request('/auth/register','POST',{'name':'A','email':'a@test.fr','password':'Password2026!','role':'admin'},400)
@@ -248,6 +250,70 @@ class APITest(unittest.TestCase):
         user = self.request('/auth/login', 'POST', {'email':'company@test.com', 'password':'Company123!'})['user']
         self.assertEqual((user['role'], user['company_id']), ('company_admin', 1))
         self.assertEqual([r['id'] for r in self.request('/companies')['items']], [1])
+
+    def test_11_login_limit_only_counts_failures_per_visitor(self):
+        good = {'email':'admin@hireloop.test','password':'Admin2026!'}
+        bad = {'email':'admin@hireloop.test','password':'incorrect'}
+        def from_ip(forwarded):
+            return {'Content-Type':'application/json','X-Forwarded-For':forwarded}
+        with unittest.mock.patch.object(server,'LOGIN_FAILURE_LIMIT',(3,300)):
+            for _ in range(5):
+                self.request('/auth/login','POST',good)
+            for _ in range(3):
+                self.request('/auth/login','POST',bad,401)
+            self.request('/auth/login','POST',bad,429)
+            self.request('/auth/login','POST',good,429)
+            # Sans TRUST_PROXY, l'en-tête est ignoré et ne permet pas de contourner la limite.
+            self.request('/auth/login','POST',good,429,from_ip('1.1.1.1'))
+            self.server.rate_hits.clear()
+            with unittest.mock.patch.dict('os.environ',{'TRUST_PROXY':'1'}):
+                for _ in range(3):
+                    self.request('/auth/login','POST',bad,401,from_ip('8.8.8.8, 10.0.0.1'))
+                self.request('/auth/login','POST',good,429,from_ip('8.8.8.8, 10.0.0.1'))
+                # Un autre visiteur reste libre, mais une valeur ajoutée à gauche ne change rien.
+                self.request('/auth/login','POST',good,200,from_ip('1.1.1.1, 10.0.0.1'))
+                self.request('/auth/login','POST',good,429,from_ip('1.1.1.1, 8.8.8.8, 10.0.0.1'))
+
+    def test_12_signup_limit(self):
+        with unittest.mock.patch.object(server,'SIGNUP_LIMIT',(2,3600)):
+            for i in range(2):
+                self.request('/auth/register','POST',{'name':'Bot','email':f'limit{i}@example.test','password':'Password2026!'},201)
+            self.request('/auth/register','POST',{'name':'Bot','email':'limit2@example.test','password':'Password2026!'},429)
+
+    def test_13_application_limits(self):
+        message = {'message':'Bonjour, je souhaite vous rejoindre pour participer à vos projets.'}
+        self.request('/auth/register','POST',{'name':'One','email':'apply1@example.test','password':'Password2026!'},201)
+        with unittest.mock.patch.object(server,'APPLICATION_ACCOUNT_LIMIT',(1,3600)):
+            self.request('/ads/5/applications','POST',message,201)
+            self.request('/ads/6/applications','POST',message,429)
+        self.server.rate_hits.clear()
+        with unittest.mock.patch.object(server,'APPLICATION_IP_LIMIT',(1,3600)):
+            self.request('/ads/6/applications','POST',message,201)
+            self.request('/auth/register','POST',{'name':'Two','email':'apply2@example.test','password':'Password2026!'},201)
+            self.request('/ads/6/applications','POST',message,429)
+
+    def test_14_password_change_ends_other_sessions(self):
+        account = {'email':'sessions@example.test','password':'Password2026!'}
+        self.request('/auth/register','POST',{'name':'Sessions',**account},201)
+        first = self.client
+        second = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+        self.client = second
+        ident = self.request('/auth/login','POST',account)['user']['id']
+        # Modifier le profil sans changer le mot de passe conserve les sessions.
+        self.request('/account','PATCH',{'phone':'0600000001'})
+        self.client = first
+        self.assertIsNotNone(self.request('/auth/me')['user'])
+        self.request('/account','PATCH',{'current_password':account['password'],'password':'NewPassword2026!'})
+        self.assertIsNotNone(self.request('/auth/me')['user'])
+        self.client = second
+        self.assertIsNone(self.request('/auth/me')['user'])
+        # Une réinitialisation par l'administrateur ferme toutes les sessions du compte.
+        self.client = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+        self.admin()
+        self.request(f'/people/{ident}','PATCH',{'password':'ResetPassword2026!'})
+        self.assertEqual(self.request('/auth/me')['user']['role'],'admin')
+        self.client = first
+        self.assertIsNone(self.request('/auth/me')['user'])
 
 if __name__=='__main__':
     unittest.main(verbosity=2)

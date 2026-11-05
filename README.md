@@ -16,10 +16,24 @@ A complete application built from the **Job Board Bootstrap** and **Job Board Pr
 ## Fixes of November 5, 2026
 
 - **First launch on a new database:** the demo data was inserted twice, which crashed the server with `UNIQUE constraint failed: people.email`. `seed.py` now inserts it once, so a fresh install starts on the first try.
-- **API tests:** the same crash stopped the whole suite during setup. All 10 tests now run and pass.
+- **API tests:** the same crash stopped the whole suite during setup. All tests now run and pass.
 - **Migration test:** `test_08` no longer matched the reformatted `schema.sql`, so it never built an old-style database. It now creates a real one and checks that the upgrade keeps existing data.
 - **Demo company account:** `company@test.com` was documented but missing from new databases. It is now part of the demo data, attached to Studio North, and covered by a test.
 - **README:** this English file is now the project's only README.
+
+## Security fixes of November 5, 2026
+
+- **Login lockout:** only failed attempts now count toward the limit, per visitor. One attacker can no longer block everyone else's login. Behind a proxy, set `TRUST_PROXY=1` so the real visitor address is used.
+- **Sign-up and application limits:** 10 sign-ups per hour per address; 20 applications per hour per account and 60 per address. Going over returns `429`.
+- **Fake applications:** applying now requires an account, and the application always uses that account's name, email, and phone. Guest applications are no longer accepted. Visitors who are not signed in are invited to sign in or register, then return to the same job.
+- **Password changes:** changing a password ends the account's other sessions. A password reset by an administrator ends all of that account's sessions.
+- **Tests:** four new tests cover these fixes, for a total of 14 API tests.
+
+**Known limits:**
+
+- Email addresses are not verified, so someone could still register with another person's address and apply.
+- Limits are kept in memory and reset when the server restarts. People sharing one network, such as a classroom, also share the per-address limits.
+- The project runs locally only. Its demo accounts have public passwords, so do not expose it to the Internet as it is.
 
 ## Get started in 30 seconds
 
@@ -59,7 +73,7 @@ All companies, job ads, and people are **fictional**. The initial data contains 
 - Paginated job ads, search by job title/keyword/company, filters by city, field, contract type, and work arrangement; sorting by relevance, date, or salary.
 - Each ad shows a title, a summary, the conditions, a **Learn more** button, and an **Apply** button.
 - Full details loaded with `fetch()`, without reloading the document and without a popup. URL fragments such as `#job/1` make views shareable and compatible with the Back button.
-- Anonymous application (name, email, phone, message) or with an account: account details are reused automatically.
+- Applying requires an account: the candidate writes a message, and the name, email, and phone come from their profile. Visitors who are not signed in are invited to sign in or register, then return to the job.
 - The message, date, job ad, candidate, and status are stored. Duplicate applications are rejected.
 - Sign-up, login, logout, profile and password editing; personal tracking of applications.
 - Redirect after login: administrators go to the admin area, candidates go to the job ads.
@@ -113,7 +127,7 @@ erDiagram
 | `applications` | ad, person, message, status, storage trace, date; unique per person/ad |
 | `sessions` | token hash, person, expiration |
 
-An anonymous application creates a person without a password. An email address tied to an account requires logging in, to prevent impersonation. Creating an account with an already known address is rejected; password recovery and email verification are not part of this local version.
+Creating an account with an already known address is rejected. A person without a password, such as an older guest applicant or a contact created by an administrator, cannot log in until an administrator sets one. Password recovery and email verification are not part of this version, so an account's email address is not proven to belong to its owner.
 
 Deleting a job ad or a person deletes its applications by cascade. Deleting a company, category, or person still referenced as an ad's contact is rejected (`409`). The last administrator is protected, and administrators cannot delete their own account. The technical `sessions` table is not exposed through CRUD, to avoid leaking tokens.
 
@@ -131,7 +145,7 @@ All routes are prefixed with **`/api`**. Request bodies are JSON with `Content-T
 | GET | `/companies/:id/ads` | A company's job ads |
 | GET | `/meta` | Companies (ID/name), categories, and cities for filters |
 | GET | `/stats` | Number of job ads, companies, people, and applications |
-| POST | `/ads/:id/applications` | Apply, with or without a session |
+| POST | `/ads/:id/applications` | Apply with `{"message":...}` (session required) |
 | POST | `/auth/register` | Create a candidate account and open a session |
 | POST | `/auth/login` | Open a session |
 | POST | `/auth/logout` | Revoke the session |
@@ -175,12 +189,16 @@ curl -b cookies.txt -H 'Content-Type: application/json' \
   -d '{"company_id":1,"category_id":1,"contact_id":1,"title":"Développeur Python","summary":"Rejoignez notre équipe.","description":"Construire et maintenir notre API.","requirements":"Python et SQL.","location":"Paris","contract":"CDI","work_mode":"Hybride","salary_min":40000,"salary_max":50000}' \
   http://127.0.0.1:8000/api/ads
 
-curl -H 'Content-Type: application/json' \
-  -d '{"name":"Test Local","email":"test@example.test","phone":"0601020304","message":"Bonjour, je souhaite rejoindre votre équipe et contribuer à ce projet."}' \
-  http://127.0.0.1:8000/api/ads/1/applications
+curl -c candidate.txt -H 'Content-Type: application/json' \
+  -d '{"email":"camille@hireloop.test","password":"Camille2026!"}' \
+  http://127.0.0.1:8000/api/auth/login
+
+curl -b candidate.txt -H 'Content-Type: application/json' \
+  -d '{"message":"Bonjour, je souhaite rejoindre votre équipe et contribuer à ce projet."}' \
+  http://127.0.0.1:8000/api/ads/2/applications
 ```
 
-Status codes: `200` success; `201` created; `400` invalid data; `401` missing session/wrong credentials; `403` admin access denied/invalid origin; `404` resource not found; `405` method not allowed; `409` duplicate/blocking relation; `413` body too large; `415` wrong content type; `429` too many login attempts.
+Status codes: `200` success; `201` created; `400` invalid data; `401` missing session/wrong credentials; `403` admin access denied/invalid origin; `404` resource not found; `405` method not allowed; `409` duplicate/blocking relation; `413` body too large; `415` wrong content type; `429` too many failed logins, sign-ups, or applications.
 
 ## Tests and demo
 
@@ -188,7 +206,7 @@ Status codes: `200` success; `201` created; `400` invalid data; `401` missing se
 python -m unittest discover -s tests -v
 ```
 
-The tests start a server on a free port with a database in a temporary folder; they do not modify the demo data. Ten tests cover more than 100 HTTP requests: filters, pagination, anonymous/candidate permissions, accounts, applications, validation, CRUD on all five resources, constraints, and request origin.
+The tests start a server on a free port with a database in a temporary folder; they do not modify the demo data. Fourteen tests cover more than 100 HTTP requests: filters, pagination, anonymous/candidate permissions, accounts, applications, validation, CRUD on all five resources, constraints, and request origin.
 
 ### Translation tests
 
@@ -208,7 +226,8 @@ See `docs/VALIDATION.md` for the presentation walkthrough. The three SQL queries
 - `--host`: listening address, `127.0.0.1` by default. The project is delivered for local execution.
 - `COOKIE_SECURE=1`: adds the Secure attribute to cookies for an installation behind HTTPS; do not enable over local HTTP.
 - PBKDF2-HMAC-SHA256 passwords (260,000 iterations and a random salt), random session tokens stored as SHA-256 hashes, HttpOnly/SameSite=Lax cookies, 24-hour expiration, parameterized SQL queries, origin checks, field allowlist, and a CSP policy.
-- Login is limited to 15 attempts per IP over five minutes. This in-memory limit resets on restart.
+- `TRUST_PROXY=1`: reads the visitor address from `X-Forwarded-For`. Enable it only behind a proxy that sets this header, because it can otherwise be forged.
+- Limits per visitor address: 15 failed logins over five minutes, 10 sign-ups per hour, and 60 applications per hour, plus 20 applications per hour per account. These in-memory limits reset on restart.
 - The demo accounts and the standard-library HTTP server are intended for development and local evaluation. An Internet deployment requires a suitable server/reverse proxy, HTTPS, and replacing the demo accounts. Nothing is published externally.
 - No SMTP, password recovery, email verification, CV storage, or automatic collection of external job ads is configured. The detailed assignment is covered by job ad management in the admin area.
 

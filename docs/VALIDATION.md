@@ -4,14 +4,15 @@
 
 Commande : `python -m unittest discover -s tests -v`
 
-Résultat : **6 scénarios réussis**, sur un serveur HTTP réel et une base SQLite temporaire.
+Résultat : **14 tests réussis**, sur un serveur HTTP réel et une base SQLite temporaire.
 
 | Scénario | Vérifications |
 |---|---|
 | Catalogue public | 12 offres initiales, filtres, recherche, résultats vides, tri, pagination, détail et offres par entreprise, erreurs 400/404 |
 | Permissions anonymes | Création/modification/suppression interdites sur les cinq ressources, données personnelles protégées |
 | Compte candidat | Inscription, session, profil, prévention d'élévation de privilège, mot de passe, candidature, doublon, suivi et déconnexion |
-| Candidature anonyme | Enregistrement, validation des champs, message trop court, compte existant, doublons et offre inexistante |
+| Candidature avec compte | Connexion obligatoire, coordonnées issues du profil, message trop court, doublons et offre inexistante |
+| Protection contre les abus | Limites de connexion, d'inscription et de candidature, fermeture des autres sessions après un changement de mot de passe |
 | Administration | CRUD des cinq tables, PUT et PATCH, relations, salaires, contraintes, suppression bloquée, protection du dernier administrateur |
 | Requêtes invalides | Injection SQL traitée comme texte, refus d'origine externe, routes inconnues, inscription incomplète |
 
@@ -34,8 +35,8 @@ Les tests ne dépendent pas du serveur de démonstration ouvert sur 8000/8001. I
 1. Démarrer `python server.py` et ouvrir `http://127.0.0.1:8000`.
 2. Rechercher « React », puis effacer les filtres. Choisir un contrat et une ville ; changer le tri.
 3. Cliquer sur **En savoir plus** : montrer le détail sans rechargement et les informations de salaire, contrat, rythme et lieu.
-4. Cliquer sur **Postuler**, saisir des informations fictives et un message d'au moins 20 caractères. Montrer la confirmation d'enregistrement.
-5. Créer un compte avec une autre adresse fictive, ou se connecter avec `camille@hireloop.test` / `Camille2026!`. Postuler à une offre sans ressaisir nom/e-mail/téléphone ; retrouver le statut dans **Mes candidatures**.
+4. Cliquer sur **Postuler** sans être connecté : montrer l'invitation à se connecter ou à créer un compte.
+5. Créer un compte avec une autre adresse fictive, ou se connecter avec `camille@hireloop.test` / `Camille2026!`. Revenir sur l'offre, envoyer un message d'au moins 20 caractères sans ressaisir nom/e-mail/téléphone ; retrouver le statut dans **Mes candidatures**.
 6. Modifier le nom ou téléphone dans **Mon compte**, puis se déconnecter.
 7. Se connecter avec `admin@hireloop.test` / `Admin2026!` ; montrer la redirection vers **Administration**.
 8. Dans **Candidatures**, ouvrir un enregistrement et passer son statut à **Entretien**.

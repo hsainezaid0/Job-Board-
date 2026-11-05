@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import hmac
+import ipaddress
 import json
 import os
 import re
@@ -38,6 +39,11 @@ REQUIRED = {
 }
 # Expression r?guli?re pour un contr?le simple du format des adresses e-mail.
 EMAIL = re.compile(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
+# Limites anti-abus : (nombre maximal, durée de la fenêtre en secondes).
+LOGIN_FAILURE_LIMIT = (15, 300)
+SIGNUP_LIMIT = (10, 3600)
+APPLICATION_ACCOUNT_LIMIT = (20, 3600)
+APPLICATION_IP_LIMIT = (60, 3600)
 # Jointures : enrichit chaque offre avec les informations de son entreprise et de sa cat?gorie.
 AD_SELECT = '''SELECT a.*, c.name AS company_name,c.color AS company_color,c.industry,
  c.description AS company_description,c.website AS company_website,k.name AS category_name
@@ -187,17 +193,69 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, json.JSONDecodeError):
             raise APIError(400,'Corps JSON invalide.')
 
-    def current_user(self, db):
-        # Retrouve l?utilisateur li? au cookie de session ; renvoie None si la session est absente ou expir?e.
+    def client_ip(self):
+        # Adresse du visiteur, utilisée pour les limites anti-abus et les journaux.
+        # TRUST_PROXY=1 uniquement derrière un proxy : sinon cet en-tête serait falsifiable.
+        headers = getattr(self, 'headers', None)
+        if os.environ.get('TRUST_PROXY') == '1' and headers:
+            # Le proxy ajoute la vraie adresse à droite : les valeurs falsifiées restent à gauche,
+            # et les sauts internes du proxy sont des adresses privées à ignorer.
+            for part in reversed(','.join(headers.get_all('X-Forwarded-For') or []).split(',')):
+                try:
+                    address = ipaddress.ip_address(part.strip())
+                except ValueError:
+                    continue
+                if not address.is_private:
+                    return str(address)
+        return self.client_address[0]
+
+    def address_string(self):
+        # Les journaux affichent le visiteur plutôt que le proxy.
+        return self.client_ip()
+
+    def rate_check(self, bucket, key, limit, message, record=True):
+        # Refuse la requête si la limite est atteinte ; record=True compte aussi cette tentative.
+        maximum, window = limit
+        now = time.time()
+        with self.server.rate_lock:
+            hits = self.server.rate_hits
+            # Empêche le compteur en mémoire de grandir sans fin.
+            if len(hits) > 10000:
+                for stale in [k for k, v in hits.items() if not v or v[-1] < now - 3600]:
+                    del hits[stale]
+            recent = [t for t in hits.get((bucket, key), []) if t > now - window]
+            hits[(bucket, key)] = recent
+            if len(recent) >= maximum:
+                raise APIError(429, message)
+            if record:
+                recent.append(now)
+
+    def rate_record(self, bucket, key):
+        # Compte une tentative après coup, par exemple un mot de passe incorrect.
+        with self.server.rate_lock:
+            self.server.rate_hits.setdefault((bucket, key), []).append(time.time())
+
+    def session_token_hash(self):
+        # Empreinte du jeton de session présent dans le cookie, ou None s'il est absent.
         cookie = SimpleCookie()
         try:
             cookie.load(self.headers.get('Cookie',''))
-            token = cookie['hireloop_session'].value
+            return hashlib.sha256(cookie['hireloop_session'].value.encode()).hexdigest()
         except (KeyError, CookieError):
             return None
-        # La base conserve seulement l?empreinte du jeton ; la date doit ?tre sup?rieure ? l?heure actuelle.
+
+    def revoke_sessions(self, db, person):
+        # Ferme les sessions d'un compte, sauf celle qui effectue la requête si elle lui appartient.
+        db.execute('DELETE FROM sessions WHERE person_id=? AND token_hash IS NOT ?',(person,self.session_token_hash()))
+
+    def current_user(self, db):
+        # Retrouve l'utilisateur lié au cookie de session ; renvoie None si la session est absente ou expirée.
+        token_hash = self.session_token_hash()
+        if not token_hash:
+            return None
+        # La base conserve seulement l'empreinte du jeton ; la date doit être supérieure à l'heure actuelle.
         return db.execute(f'SELECT {", ".join("p."+x for x in PERSON_COLUMNS.split(","))} FROM people p JOIN sessions s ON s.person_id=p.id WHERE s.token_hash=? AND s.expires_at>?',
-            (hashlib.sha256(token.encode()).hexdigest(), int(time.time()))).fetchone()
+            (token_hash, int(time.time()))).fetchone()
 
     def require_user(self, db, admin=False):
         # Exige une connexion et, si admin=True, un r?le d?administrateur ; renvoie l?utilisateur autoris?.
@@ -290,6 +348,7 @@ class Handler(BaseHTTPRequestHandler):
             if path.endswith('register'):
                 if set(data) - {'name','email','phone','password'}:
                     raise APIError(400,'Champs d’inscription invalides.')
+                self.rate_check('signup',self.client_ip(),SIGNUP_LIMIT,'Trop d’inscriptions depuis cette adresse. Réessayez plus tard.')
                 if not data.get('password'):
                     raise APIError(400,'Le mot de passe est obligatoire.')
                 values = self.validate('people',data)
@@ -303,25 +362,17 @@ class Handler(BaseHTTPRequestHandler):
             email, password = data.get('email',''), data.get('password','')
             if not isinstance(email,str) or not isinstance(password,str):
                 raise APIError(400,'Identifiants invalides.')
-            # Limitation locale par IP ; aucune donnée de mot de passe conservée.
-            now = time.time()
-            ip = self.client_address[0]
-            # Le verrou prot?ge le compteur partag? entre les threads ; limite ? 15 tentatives sur 5 minutes.
-            with self.server.login_lock:
-                attempts = [t for t in self.server.login_attempts.get(ip,[]) if t > now-300]
-                if len(attempts) >= 15:
-                    raise APIError(429,'Trop de tentatives. Réessayez dans cinq minutes.')
-                attempts.append(now)
-                self.server.login_attempts[ip] = attempts
+            # Seuls les échecs comptent : un visiteur ne peut pas bloquer la connexion des autres.
+            ip = self.client_ip()
+            self.rate_check('login',ip,LOGIN_FAILURE_LIMIT,'Trop de tentatives. Réessayez dans cinq minutes.',record=False)
             user = db.execute('SELECT * FROM people WHERE email=?',(email.strip().lower(),)).fetchone()
             if not user or not verify_password(password,user['password_hash']):
+                self.rate_record('login',ip)
                 raise APIError(401,'Adresse e-mail ou mot de passe incorrect.')
             return 200, {'user':self.record(db,'people',user['id'])}, self.new_session(db,user['id'])
         # D?connexion : supprime la session c?t? base et fait expirer le cookie c?t? navigateur.
         if path == '/api/auth/logout' and method == 'POST':
-            cookie = SimpleCookie(self.headers.get('Cookie',''))
-            if 'hireloop_session' in cookie:
-                db.execute('DELETE FROM sessions WHERE token_hash=?',(hashlib.sha256(cookie['hireloop_session'].value.encode()).hexdigest(),))
+            db.execute('DELETE FROM sessions WHERE token_hash=?',(self.session_token_hash(),))
             return 200, {'message':'Vous êtes déconnecté.'}, 'hireloop_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'
         # Modification du profil personnel ; changer l?e-mail ou le mot de passe exige le mot de passe actuel.
         if path == '/api/account' and method == 'PATCH':
@@ -336,6 +387,8 @@ class Handler(BaseHTTPRequestHandler):
                 if not verify_password(current_password,stored):
                     raise APIError(400,'Votre mot de passe actuel est requis pour ce changement.')
             self.update(db,'people',user['id'],values)
+            if 'password_hash' in values:
+                self.revoke_sessions(db,user['id'])
             return 200, {'user':self.record(db,'people',user['id'])}, None
         # Liste uniquement les candidatures de l?utilisateur connect?, avec le titre et l?entreprise.
         if path == '/api/my-applications' and method == 'GET':
@@ -360,31 +413,27 @@ class Handler(BaseHTTPRequestHandler):
         if match and method == 'GET':
             self.record(db,'companies',int(match[1]))
             return 200, {'items':[dict(r) for r in db.execute(AD_SELECT+' WHERE a.company_id=? ORDER BY a.id DESC',(int(match[1]),))]}, None
-        # Soumission d?une candidature : accepte un candidat connect? ou un contact sans compte.
+        # Soumission d'une candidature : réservée aux comptes, avec les coordonnées du profil.
         match = re.fullmatch(r'/api/ads/(\d+)/applications',path)
         if match and method == 'POST':
+            user = self.current_user(db)
+            if not user:
+                raise APIError(401,'Connectez-vous pour postuler.')
             ad_id = int(match[1])
             self.record(db,'ads',ad_id)
             data = self.body()
-            user = self.current_user(db)
+            unknown = set(data) - {'message'}
+            if unknown:
+                raise APIError(400,'Champ inconnu : '+', '.join(sorted(unknown)))
             message = data.get('message','')
             if not isinstance(message,str) or not 20 <= len(message.strip()) <= 12000:
                 raise APIError(400,'Votre message doit contenir entre 20 et 12 000 caractères.')
-            if user:
-                person_id = user['id']
-                values = self.validate('people', {k:data.get(k, user[k]) for k in ('name','email','phone')})
-            else:
-                values = self.validate('people',{k:data[k] for k in ('name','email','phone') if k in data})
-                existing = db.execute('SELECT id,password_hash FROM people WHERE email=?',(values['email'],)).fetchone()
-                if existing and existing['password_hash']:
-                    raise APIError(409,'Un compte existe avec cet e-mail. Connectez-vous pour postuler.')
-                if existing:
-                    person_id = existing['id']
-                else:
-                    person_id = db.execute('INSERT INTO people(name,email,phone) VALUES(?,?,?)',(values['name'],values['email'],values.get('phone',''))).lastrowid
-            # Fige les coordonn?es saisies dans la candidature, ind?pendamment des futures modifications du profil.
+            limit_message = 'Trop de candidatures envoyées. Réessayez plus tard.'
+            self.rate_check('apply-account',user['id'],APPLICATION_ACCOUNT_LIMIT,limit_message)
+            self.rate_check('apply-ip',self.client_ip(),APPLICATION_IP_LIMIT,limit_message)
+            # Fige les coordonnées du compte dans la candidature, indépendamment des futures modifications du profil.
             ident = db.execute('INSERT INTO applications(ad_id,person_id,message,applicant_name,applicant_email,applicant_phone) VALUES(?,?,?,?,?,?)',
-                (ad_id,person_id,message.strip(),values['name'],values['email'],values.get('phone',''))).lastrowid
+                (ad_id,user['id'],message.strip(),user['name'],user['email'],user['phone'])).lastrowid
             return 201, {'application':self.record(db,'applications',ident),'message':'Votre candidature a été enregistrée et est accessible au recruteur.'}, None
         # Routes g?n?riques : la ressource est limit?e ? cinq tables et l?identifiant facultatif est num?rique.
         match = re.fullmatch(r'/api/(ads|companies|categories|people|applications)(?:/(\d+))?',path)
@@ -435,6 +484,8 @@ class Handler(BaseHTTPRequestHandler):
                 if merged['salary_max'] < merged['salary_min']:
                     raise APIError(400,'Le salaire maximum doit être supérieur au minimum.')
             self.update(db,resource,ident,values)
+            if resource == 'people' and 'password_hash' in values:
+                self.revoke_sessions(db,ident)
             return 200,self.record(db,resource,ident),None
         # Suppression : interdit de supprimer son propre compte administrateur et le dernier administrateur g?n?ral.
         if method == 'DELETE' and ident:
@@ -598,8 +649,8 @@ def make_server(host='127.0.0.1',port=8000):
     # Chaque connexion peut ?tre trait?e dans un thread pour ne pas bloquer tous les visiteurs.
     server = ThreadingHTTPServer((host,port),Handler)
     # Compteurs en m?moire : ils sont partag?s entre threads, mais disparaissent au red?marrage.
-    server.login_attempts = {}
-    server.login_lock = threading.Lock()
+    server.rate_hits = {}
+    server.rate_lock = threading.Lock()
     return server
 
 # Ce bloc d?marre seulement si le fichier est ex?cut? directement, pas lorsqu?il est import? par les tests.
