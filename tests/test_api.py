@@ -211,16 +211,27 @@ class APITest(unittest.TestCase):
             self.assertEqual(self.request('/ads?limit=1000')['limit'], 100)
 
     def test_08_legacy_migration_preserves_relations(self):
+        import re
         import sqlite3
         db = sqlite3.connect(':memory:')
         db.row_factory = sqlite3.Row
         try:
+            legacy_people = """CREATE TABLE IF NOT EXISTS people (
+                id INTEGER PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL COLLATE NOCASE UNIQUE,
+                phone TEXT NOT NULL DEFAULT '', password_hash TEXT,
+                role TEXT NOT NULL DEFAULT 'candidate' CHECK (role IN ('candidate', 'admin')),
+                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')));"""
             schema = (server.ROOT / 'schema.sql').read_text(encoding='utf-8')
-            schema = schema.replace(", 'company_admin'", '')
-            schema = schema.replace('        company_id INTEGER REFERENCES companies(id) ON DELETE RESTRICT,\n', '')
-            schema = schema.replace(",\n        CHECK ((role = 'company_admin' AND company_id IS NOT NULL) OR (role <> 'company_admin' AND company_id IS NULL))", '')
+            schema, replaced = re.subn(r'CREATE TABLE\s+IF NOT EXISTS people \(.*?\n\s*\);', lambda _: legacy_people, schema, count=1, flags=re.S)
+            self.assertEqual(replaced, 1)
             db.executescript(schema)
-            server.seed(db)
+            db.executemany('INSERT INTO people(name,email,role) VALUES(?,?,?)', [('Admin','a@test.fr','admin'),('Camille','c@test.fr','candidate'),('Alex','b@test.fr','candidate')])
+            db.execute("INSERT INTO companies(name,industry,location,description) VALUES('Co','Tech','Paris','Test')")
+            db.execute("INSERT INTO categories(name) VALUES('Test')")
+            db.execute("INSERT INTO ads(company_id,category_id,contact_id,title,summary,description,requirements,location,contract,work_mode,salary_min,salary_max) VALUES(1,1,1,'Job','S','D','R','Paris','CDI','Hybride',1,2)")
+            db.execute("INSERT INTO applications(ad_id,person_id,message) VALUES(1,2,'Message')")
+            db.commit()
+            self.assertNotIn('company_id', [r['name'] for r in db.execute('PRAGMA table_info(people)')])
             before = {t: [tuple(r) for r in db.execute('SELECT * FROM ' + t)] for t in ('ads','applications','companies')}
             server.migrate_people(db)
             server.migrate_people(db)
@@ -229,8 +240,14 @@ class APITest(unittest.TestCase):
             self.assertEqual(db.execute('PRAGMA foreign_key_check').fetchall(), [])
             self.assertEqual(db.execute('SELECT role FROM people WHERE id=1').fetchone()[0], 'admin')
             db.execute("UPDATE people SET role='company_admin',company_id=1 WHERE id=3")
+            self.assertEqual(db.execute('SELECT company_id FROM people WHERE id=3').fetchone()[0], 1)
         finally:
             db.close()
+
+    def test_10_demo_company_account(self):
+        user = self.request('/auth/login', 'POST', {'email':'company@test.com', 'password':'Company123!'})['user']
+        self.assertEqual((user['role'], user['company_id']), ('company_admin', 1))
+        self.assertEqual([r['id'] for r in self.request('/companies')['items']], [1])
 
 if __name__=='__main__':
     unittest.main(verbosity=2)
