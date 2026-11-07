@@ -179,6 +179,11 @@ class APITest(unittest.TestCase):
         created = self.request('/ads', 'POST', ad, 201)
         self.request('/ads/' + str(created['id']), 'PATCH', {'title':'Company offer'})
         self.request('/ads/' + str(created['id']), 'DELETE')
+        # The company and contact are optional for recruiters: they come from the session.
+        minimal = {k: v for k, v in ad.items() if k not in ('company_id', 'contact_id')}
+        own = self.request('/ads', 'POST', minimal, 201)
+        self.assertEqual((own['company_id'], own['contact_id']), (1, person['id']))
+        self.request('/ads/' + str(own['id']), 'DELETE')
         self.request('/auth/logout', 'POST', {})
         self.admin()
         self.request('/people/' + str(person['id']), 'PATCH', {'role':'candidate'})
@@ -188,7 +193,7 @@ class APITest(unittest.TestCase):
         from contextlib import closing
 
         with closing(server.connect()) as db:
-            offers = [dict(row) for row in db.execute('SELECT * FROM ads')]
+            offers = [dict(row) for row in db.execute("SELECT * FROM ads WHERE status='published'")]
             orders = {
                 'relevant': lambda row: (row['featured'], row['created_at'], row['id']),
                 'recent': lambda row: (row['created_at'], row['id']),
@@ -314,6 +319,223 @@ class APITest(unittest.TestCase):
         self.assertEqual(self.request('/auth/me')['user']['role'],'admin')
         self.client = first
         self.assertIsNone(self.request('/auth/me')['user'])
+
+    def test_15_robots_and_sitemap(self):
+        site = self.base.removesuffix('/api')
+        with urllib.request.urlopen(site + '/robots.txt') as response:
+            robots = response.read().decode()
+            self.assertTrue(response.headers['Content-Type'].startswith('text/plain'))
+        self.assertIn(f'Sitemap: {site}/sitemap.xml', robots)
+        self.assertIn('Disallow: /api/admin/', robots)
+        self.assertNotIn('Disallow: /api/ads', robots)
+        with urllib.request.urlopen(site + '/sitemap.xml') as response:
+            sitemap = response.read().decode()
+            self.assertTrue(response.headers['Content-Type'].startswith('application/xml'))
+        self.assertIn(f'<loc>{site}/</loc>', sitemap)
+        # Un en-tête Host invalide ne doit pas se retrouver dans le fichier généré.
+        evil = urllib.request.Request(site + '/sitemap.xml', headers={'Host':'evil.test"><script>'})
+        with urllib.request.urlopen(evil) as response:
+            self.assertNotIn('evil.test', response.read().decode())
+
+    # ------------------------------------------------------------------ v2 features
+    def other_client(self):
+        return urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+
+    def as_client(self, client, call, *args, **kwargs):
+        previous, self.client = self.client, client
+        try:
+            return call(*args, **kwargs)
+        finally:
+            self.client = previous
+
+    def raw(self, path):
+        with self.client.open(self.base + path) as response:
+            return response.headers, response.read()
+
+    def test_16_ad_lifecycle_and_views(self):
+        public_ids = [a['id'] for a in self.request('/ads?limit=100')['items']]
+        self.assertNotIn(13, public_ids)              # draft
+        self.assertNotIn(14, public_ids)              # closed
+        self.request('/ads/13', expected=404)
+        self.assertEqual(self.request('/ads/14')['status'], 'closed')
+        # The company that owns the draft can preview it.
+        self.request('/auth/login','POST',{'email':'company@test.com','password':'Company123!'})
+        preview = self.request('/ads/13')
+        self.assertTrue(preview['viewer']['can_manage'])
+        # A company admin cannot feature its own ads.
+        self.request('/ads/2', 'PATCH', {'featured':0}, 403)
+        self.request('/ads/11', 'PATCH', {'featured':1, 'title':'Brand Designer freelance'})
+        self.assertEqual(self.request('/admin/ads/11')['featured'], 0)
+        self.request('/auth/logout','POST',{})
+        # Closed ads do not accept applications.
+        self.request('/auth/login','POST',{'email':'alex@hireloop.test','password':'Alex2026!'})
+        self.request('/ads/14/applications','POST',{'message':'Bonjour, je souhaite vous rejoindre pour ce stage.'},409)
+        self.request('/ads/13/applications','POST',{'message':'Bonjour, je souhaite vous rejoindre pour ce poste.'},404)
+        self.request('/auth/logout','POST',{})
+        self.admin()
+        self.request('/ads/1/applications','POST',{'message':'Un administrateur ne postule pas aux offres.'},403)
+        # Publishing a draft makes it public and dates it from today.
+        self.admin()
+        before = self.request('/admin/ads/13')
+        published = self.request('/ads/13', 'PATCH', {'status':'published'})
+        self.assertGreater(published['created_at'], before['created_at'])
+        self.request('/auth/logout','POST',{})
+        self.assertIn(13, [a['id'] for a in self.request('/ads?limit=100')['items']])
+        self.request('/ads/13'); self.request('/ads/13')
+        self.admin()
+        self.assertEqual(self.request('/admin/ads/13')['views'], 2)
+        self.request('/ads/13'); self.assertEqual(self.request('/admin/ads/13')['views'], 2)   # admins are not counted
+        self.request('/ads/13', 'PATCH', {'status':'draft'})
+        self.request('/ads/13', 'PATCH', {'status':'archived'}, 400)
+
+    def test_17_saved_jobs_and_withdrawal(self):
+        self.request('/auth/register','POST',{'name':'Saver','email':'saver@example.test','password':'Password2026!'},201)
+        self.request('/saved/2', 'PUT')
+        self.request('/saved/2', 'PUT')                # idempotent
+        self.request('/saved/13', 'PUT', expected=404) # drafts cannot be saved
+        self.assertEqual(self.request('/auth/me')['saved'], [2])
+        self.assertEqual([a['id'] for a in self.request('/saved')['items']], [2])
+        self.assertTrue(self.request('/ads/2')['viewer']['saved'])
+        self.request('/saved/2', 'DELETE')
+        self.assertEqual(self.request('/saved')['items'], [])
+        message = {'message':'Bonjour, je souhaite vous rejoindre pour participer à vos projets.'}
+        first = self.request('/ads/2/applications','POST',message,201)['application']
+        self.assertEqual(self.request('/ads/2')['viewer']['application']['status'], 'Reçue')
+        self.request(f'/my-applications/{first["id"]}', 'DELETE')
+        self.request(f'/my-applications/{first["id"]}', 'DELETE', expected=404)
+        second = self.request('/ads/3/applications','POST',message,201)['application']
+        admin = self.other_client()
+        self.as_client(admin, self.admin)
+        self.as_client(admin, self.request, f'/applications/{second["id"]}', 'PATCH', {'status':'Acceptée'})
+        self.request(f'/my-applications/{second["id"]}', 'DELETE', expected=400)
+        # Someone else's application cannot be withdrawn.
+        self.request('/my-applications/1', 'DELETE', expected=404)
+        self.request('/saved', expected=200)
+        self.request('/auth/logout','POST',{})
+        self.request('/saved', expected=401)
+
+    def test_18_history_notes_and_updates(self):
+        self.request('/auth/register','POST',{'name':'History','email':'history@example.test','password':'Password2026!'},201)
+        ident = self.request('/ads/6/applications','POST',{'message':'Bonjour, votre moteur de calcul m’intéresse beaucoup.'},201)['application']['id']
+        item = self.request('/my-applications')['items'][0]
+        self.assertEqual([e['status'] for e in item['events']], ['Reçue'])
+        self.assertFalse(item['updated'])
+        self.assertEqual(self.request('/auth/me')['updates'], 0)
+        admin = self.other_client()
+        self.as_client(admin, self.admin)
+        self.as_client(admin, self.request, f'/applications/{ident}', 'PATCH', {'status':'Entretien','notes':'Secret recruiter note'})
+        self.as_client(admin, self.request, f'/applications/{ident}', 'PATCH', {'notes':'Secret recruiter note, edited'})
+        detail = self.as_client(admin, self.request, f'/admin/applications/{ident}')
+        self.assertEqual([e['status'] for e in detail['events']], ['Reçue','Entretien'])
+        self.assertEqual(detail['ad_title'], 'Développeur·se Back-end Python')
+        self.assertIn('candidate', detail)
+        self.assertEqual(self.request('/auth/me')['updates'], 1)
+        response = self.request('/my-applications')
+        self.assertNotIn('Secret', json.dumps(response))
+        self.assertTrue(response['items'][0]['updated'])
+        self.assertEqual(len(response['items'][0]['events']), 2)
+        self.request('/my-applications/seen', 'POST', {})
+        self.assertEqual(self.request('/auth/me')['updates'], 0)
+        # Company admins may write notes on their own company's applications only.
+        company = self.other_client()
+        self.as_client(company, self.request, '/auth/login','POST',{'email':'company@test.com','password':'Company123!'})
+        self.as_client(company, self.request, '/applications/4', 'PATCH', {'notes':'Rappeler lundi.'})
+        self.as_client(company, self.request, f'/applications/{ident}', 'PATCH', {'notes':'x'}, 403)
+
+    def test_19_admin_lists_dashboard_and_export(self):
+        self.admin()
+        received = self.request('/admin/applications?status=Re%C3%A7ue&limit=100')
+        self.assertTrue(received['items'] and all(a['status'] == 'Reçue' for a in received['items']))
+        self.assertEqual(received['facets']['Reçue'], received['total'])
+        self.assertGreater(sum(received['facets'].values()), received['total'])
+        self.assertIn('ad_title', received['items'][0])
+        found = self.request('/admin/ads?q=React')
+        self.assertEqual(found['total'], 1)
+        self.assertEqual(found['items'][0]['company_name'], 'Studio North')
+        self.assertGreaterEqual(found['items'][0]['applications_count'], 3)
+        self.assertTrue(all(p['role'] == 'admin' for p in self.request('/admin/people?role=admin')['items']))
+        self.assertNotIn('password_hash', json.dumps(self.request('/admin/people?limit=100')))
+        self.assertEqual(self.request('/admin/ads?status=draft')['facets'].get('draft'), 1)
+        dashboard = self.request('/admin/dashboard')
+        self.assertEqual(len(dashboard['timeline']), 14)
+        self.assertIn('people', dashboard)
+        self.assertEqual(dashboard['ads']['closed'], 1)
+        headers, body = self.raw('/admin/applications/export')
+        self.assertTrue(headers['Content-Type'].startswith('text/csv'))
+        self.assertIn('attachment', headers['Content-Disposition'])
+        text = body.decode('utf-8')
+        self.assertTrue(text.startswith('﻿ID;Date;Offre'))
+        self.assertIn('Orbit', text)
+        self.request('/auth/logout','POST',{})
+        self.request('/admin/dashboard', expected=401)
+        self.request('/admin/applications/export', expected=401)
+        self.request('/auth/login','POST',{'email':'company@test.com','password':'Company123!'})
+        dashboard = self.request('/admin/dashboard')
+        self.assertNotIn('people', dashboard)
+        self.assertTrue(dashboard['top_ads'])
+        studio = {a['id'] for a in self.request('/admin/ads?limit=100')['items']}
+        self.assertTrue(all(a['id'] in studio for a in dashboard['top_ads']))
+        self.assertTrue(all(a['ad_id'] in studio for a in dashboard['recent_applications']))
+        text = self.raw('/admin/applications/export')[1].decode('utf-8')
+        self.assertIn('Studio North', text)
+        self.assertNotIn('Orbit', text)
+
+    def test_20_account_deletion(self):
+        account = {'email':'leaving@example.test','password':'Password2026!'}
+        self.request('/auth/register','POST',{'name':'Leaving',**account},201)
+        self.request('/ads/7/applications','POST',{'message':'Bonjour, ce stage correspond à ce que je cherche.'},201)
+        self.request('/account','DELETE',{'current_password':'wrong'},400)
+        self.request('/account','DELETE',{'current_password':account['password']})
+        self.assertIsNone(self.request('/auth/me')['user'])
+        self.request('/auth/login','POST',account,401)
+        # Recruiters still named as an ad contact must hand it over first.
+        self.request('/auth/login','POST',{'email':'company@test.com','password':'Company123!'})
+        self.request('/account','DELETE',{'current_password':'Company123!'},409)
+        self.request('/auth/logout','POST',{})
+        self.admin()
+        self.request('/account','DELETE',{'current_password':'Admin2026!'},400)
+
+    def test_21_directory_similar_and_filters(self):
+        companies = self.request('/directory/companies')['items']
+        self.assertEqual(len(companies), 6)
+        studio = next(c for c in companies if c['id'] == 1)
+        self.assertEqual(studio['open_ads'], 2)
+        profile = self.request('/directory/companies/1')
+        self.assertTrue(all(a['status'] == 'published' for a in profile['ads']))
+        self.request('/directory/companies/999', expected=404)
+        similar = self.request('/ads/1/similar')['items']
+        self.assertTrue(0 < len(similar) <= 3)
+        self.assertNotIn(1, [a['id'] for a in similar])
+        self.request('/ads/13/similar', expected=404)
+        meta = self.request('/meta')
+        self.assertEqual(sum(c['count'] for c in meta['categories']), 12)
+        self.assertIn('CDI', meta['contracts'])
+        rich = self.request('/ads?min_salary=60000&limit=100')['items']
+        self.assertTrue(rich and all(a['salary_max'] >= 60000 for a in rich))
+        self.request('/ads?min_salary=abc', expected=400)
+        self.assertEqual(self.request('/ads?q=Infrastructure')['total'], 1)   # category names are searchable
+
+    def test_22_field_validation(self):
+        self.request('/auth/register','POST',{'name':'Valid','email':'valid@example.test','password':'Password2026!'},201)
+        self.request('/account','PATCH',{'phone':'call me'},400)
+        self.request('/account','PATCH',{'website':'ftp://example.test'},400)
+        self.request('/account','PATCH',{'name':'x' * 200},400)
+        user = self.request('/account','PATCH',{'headline':'Designer','location':'Lille','website':'https://example.test','bio':'Hello'})['user']
+        self.assertEqual((user['headline'], user['location']), ('Designer', 'Lille'))
+        self.request('/auth/logout','POST',{})
+        self.admin()
+        self.request('/ads/1','PATCH',{'contract':'Intérim'},400)
+        self.request('/ads/1','PATCH',{'featured':2},400)
+        self.request('/applications/1','PATCH',{'status':'Archivée'},400)
+        # A request without a Host header used to crash the origin check.
+        import http.client
+        connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port)
+        connection.putrequest('POST', '/api/auth/logout', skip_host=True)
+        connection.putheader('Origin', 'https://evil.test')
+        connection.putheader('Content-Length', '0')
+        connection.endheaders()
+        self.assertEqual(connection.getresponse().status, 403)
+        connection.close()
 
 if __name__=='__main__':
     unittest.main(verbosity=2)

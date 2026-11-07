@@ -1,6 +1,7 @@
 PRAGMA foreign_keys = ON;
 
--- ON DELETE RESTRICT Empêcher la suppression si des données liées existent
+-- Keep `people` as the first table: server.migrate_people() reads its definition from here.
+-- ON DELETE RESTRICT refuses a deletion while related rows still exist.
 
 CREATE TABLE
     IF NOT EXISTS people (
@@ -11,7 +12,13 @@ CREATE TABLE
         password_hash TEXT,
         role TEXT NOT NULL DEFAULT 'candidate' CHECK (role IN ('candidate', 'admin', 'company_admin')),
         company_id INTEGER REFERENCES companies (id) ON DELETE RESTRICT,
-        created_at TEXT NOT NULL DEFAULT (strftime ('%Y-%m-%dT%H:%M:%SZ', 'now')), --strftime est une fonction SQLite qui permet de formater une date.
+        headline TEXT NOT NULL DEFAULT '',
+        location TEXT NOT NULL DEFAULT '',
+        bio TEXT NOT NULL DEFAULT '',
+        website TEXT NOT NULL DEFAULT '',
+        last_login_at TEXT NOT NULL DEFAULT '',
+        applications_seen_at TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT (strftime ('%Y-%m-%dT%H:%M:%SZ', 'now')),
         CHECK (
             (
                 role = 'company_admin'
@@ -60,6 +67,10 @@ CREATE TABLE
         salary_max INTEGER NOT NULL CHECK (salary_max >= salary_min),
         working_time TEXT NOT NULL DEFAULT 'Temps plein',
         featured INTEGER NOT NULL DEFAULT 0 CHECK (featured IN (0, 1)),
+        -- draft: visible only to its company; published: public; closed: public, no new applications.
+        status TEXT NOT NULL DEFAULT 'published' CHECK (status IN ('draft', 'published', 'closed')),
+        views INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL DEFAULT '',
         created_at TEXT NOT NULL DEFAULT (strftime ('%Y-%m-%dT%H:%M:%SZ', 'now'))
     );
 
@@ -79,8 +90,34 @@ CREATE TABLE
             )
         ),
         email_status TEXT NOT NULL DEFAULT 'Enregistré',
+        -- Contact details frozen at the time of applying.
+        applicant_name TEXT NOT NULL DEFAULT '',
+        applicant_email TEXT NOT NULL DEFAULT '',
+        applicant_phone TEXT NOT NULL DEFAULT '',
+        -- Private recruiter notes, never returned to the candidate.
+        notes TEXT NOT NULL DEFAULT '',
+        status_updated_at TEXT NOT NULL DEFAULT '',
         created_at TEXT NOT NULL DEFAULT (strftime ('%Y-%m-%dT%H:%M:%SZ', 'now')),
         UNIQUE (ad_id, person_id)
+    );
+
+-- Status history of each application, shown to the candidate and the recruiter.
+CREATE TABLE
+    IF NOT EXISTS application_events (
+        id INTEGER PRIMARY KEY,
+        application_id INTEGER NOT NULL REFERENCES applications (id) ON DELETE CASCADE,
+        status TEXT NOT NULL,
+        actor_id INTEGER REFERENCES people (id) ON DELETE SET NULL,
+        created_at TEXT NOT NULL DEFAULT (strftime ('%Y-%m-%dT%H:%M:%SZ', 'now'))
+    );
+
+-- Jobs a candidate bookmarked.
+CREATE TABLE
+    IF NOT EXISTS saved_ads (
+        person_id INTEGER NOT NULL REFERENCES people (id) ON DELETE CASCADE,
+        ad_id INTEGER NOT NULL REFERENCES ads (id) ON DELETE CASCADE,
+        created_at TEXT NOT NULL DEFAULT (strftime ('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        PRIMARY KEY (person_id, ad_id)
     );
 
 CREATE TABLE
@@ -90,38 +127,17 @@ CREATE TABLE
         expires_at INTEGER NOT NULL
     );
 
-
---accélérer les recherches, les filtres et les tris dans ta base de données SQLite
-
-
-
--- Accélérer la recherche des offres par entreprise
+-- Indexes on columns that exist in every version of the schema.
+-- Indexes on newer columns (ads.status...) are created by server.migrate_columns()
+-- after older databases have been upgraded.
 CREATE INDEX IF NOT EXISTS idx_ads_company ON ads (company_id);
-
--- Accélérer la recherche des offres par catégorie
 CREATE INDEX IF NOT EXISTS idx_ads_category ON ads (category_id);
-
--- Accélérer la recherche des candidatures d'un utilisateur
 CREATE INDEX IF NOT EXISTS idx_applications_person ON applications (person_id);
-
--- Accélérer la recherche des candidatures pour une offre
 CREATE INDEX IF NOT EXISTS idx_applications_ad ON applications (ad_id);
-
--- Afficher les offres mises en avant en premier, puis les plus récentes
 CREATE INDEX IF NOT EXISTS idx_ads_relevant ON ads (featured DESC, created_at DESC, id DESC);
-
--- Afficher les offres les plus récentes en premier
 CREATE INDEX IF NOT EXISTS idx_ads_recent ON ads (created_at DESC, id DESC);
-
--- Afficher les offres avec les salaires les plus élevés en premier
 CREATE INDEX IF NOT EXISTS idx_ads_salary ON ads (salary_max DESC, id DESC);
-
--- Avoid scanning sessions when deleting a person or expiring old logins.
-
-
--- Accélérer la recherche des sessions d'un utilisateur
+CREATE INDEX IF NOT EXISTS idx_events_application ON application_events (application_id);
+CREATE INDEX IF NOT EXISTS idx_saved_ad ON saved_ads (ad_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_person ON sessions (person_id);
-
--- Accélérer la recherche des sessions expirées
 CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions (expires_at);
-

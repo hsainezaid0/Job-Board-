@@ -1,8 +1,9 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const path = require('node:path');
 const vm = require('node:vm');
 const { test } = require('node:test');
-const source = fs.readFileSync('public/i18n.js', 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '..', 'public', 'i18n.js'), 'utf8');
 
 function setup(saved = null, blocked = false) {
   const root = { nodeType: 1, matches: () => false, hasAttribute: () => false, childNodes: [] };
@@ -17,21 +18,35 @@ function setup(saved = null, blocked = false) {
 }
 
 test('French default, saved English, and unavailable storage', () => {
-  assert.equal(setup().run('translate("Les offres")'), 'Les offres');
-  assert.equal(setup('en').run('translate("Les offres")'), 'Jobs');
+  assert.equal(setup().run('translate("Offres")'), 'Offres');
+  assert.equal(setup('en').run('translate("Offres")'), 'Jobs');
   assert.equal(setup('invalid').root.lang, 'fr');
   assert.equal(setup(null, true).root.lang, 'fr');
 });
 
-test('dynamic messages, titles, dates and validation', () => {
+test('templates, titles, dates and validation messages', () => {
   const { run } = setup('en');
-  assert.equal(run('translate("1 opportunité pour écrire la suite")'), '1 opportunity for your next chapter');
-  assert.equal(run('translate("12 opportunités pour écrire la suite")'), '12 opportunities for your next chapter');
+  assert.equal(run('translate("il y a 3 jours")'), '3 days ago');
+  assert.equal(run('translate("hier")'), 'yesterday');
   assert.equal(run('translate("Mes candidatures · HireLoop")'), 'My applications · HireLoop');
-  assert.equal(run('translate("+ Ajouter une offre")'), '+ Add a job');
+  assert.equal(run('translate("Statut mis à jour : Entretien")'), 'Status updated: Interview');
   assert.equal(run('translate("Champ obligatoire : email.")'), 'Required field: email.');
+  assert.equal(run('translate("40 k€ brut / an")'), '40k€ gross / year');
   assert.equal(run('translate(localizedDate("2026-02-05"))'), '5 Feb 2026');
   assert.equal(run('translate("Studio North")'), 'Studio North');
+  // Surrounding whitespace is preserved around translated text.
+  assert.equal(run('translate(" postes ouverts dans ")'), ' open positions at ');
+});
+
+test('every catalogue line has a French and an English side', () => {
+  const lines = source.split('`')[1].split('\n');
+  for (const line of lines) {
+    const parts = line.split('|');
+    assert.equal(parts.length, 2, `Malformed line: ${line}`);
+    assert.ok(parts[0].trim() && parts[1].trim(), `Empty side: ${line}`);
+  }
+  const keys = lines.map(l => l.split('|')[0]);
+  assert.equal(new Set(keys).size, keys.length, 'Duplicate French keys');
 });
 
 test('switching is lossless and handles newly updated text', () => {
@@ -48,9 +63,9 @@ test('switching is lossless and handles newly updated text', () => {
 
 test('recruiter copy and textarea drafts are excluded', () => {
   const { context, run } = setup('en');
-  context.node = { nodeType: 3, nodeValue: 'Les offres', parentElement: { closest: () => true } };
+  context.node = { nodeType: 3, nodeValue: 'Offres', parentElement: { closest: () => true } };
   run('localize(node)');
-  assert.equal(context.node.nodeValue, 'Les offres');
+  assert.equal(context.node.nodeValue, 'Offres');
 });
 
 test('accessible attributes are translated without changing input values', () => {

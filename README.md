@@ -1,43 +1,12 @@
 # HireLoop — Job Board
 
-A complete application built from the **Job Board Bootstrap** and **Job Board Project** assignments: a JavaScript frontend, a Python REST API, and a persistent SQLite relational database.
+A complete job board built from the **Job Board Bootstrap** and **Job Board Project** assignments: a JavaScript frontend, a Python REST API and a persistent SQLite database. No dependencies, no build step.
 
-## Update of November 5, 2026 — French / English
-
-- Added a **FR / EN** switcher on the right side of the navigation bar, after the account buttons.
-- French remains the default language. The language choice is saved in the browser (`localStorage`) when available.
-- Interface text is translated: navigation, search and filters, forms, profile, applications, administration, notifications, and listed error messages.
-- Switching languages happens without reloading the page and keeps entered fields and filter values.
-- Displayed dates are adapted to the selected language. Job titles and descriptions, as well as text written by recruiters, stay in their original language.
-- The FR / EN controls announce the active language to assistive technologies; the document language is also updated.
-
-**Candidate role:** the two demo accounts, Camille and Alex, have the same technical role `candidate` and the same permissions. In French, "Candidate" and "Candidat" are the feminine and masculine forms of the same role; in English, both are shown as "Candidate".
-
-## Fixes of November 5, 2026
-
-- **First launch on a new database:** the demo data was inserted twice, which crashed the server with `UNIQUE constraint failed: people.email`. `seed.py` now inserts it once, so a fresh install starts on the first try.
-- **API tests:** the same crash stopped the whole suite during setup. All tests now run and pass.
-- **Migration test:** `test_08` no longer matched the reformatted `schema.sql`, so it never built an old-style database. It now creates a real one and checks that the upgrade keeps existing data.
-- **Demo company account:** `company@test.com` was documented but missing from new databases. It is now part of the demo data, attached to Studio North, and covered by a test.
-- **README:** this English file is now the project's only README.
-
-## Security fixes of November 5, 2026
-
-- **Login lockout:** only failed attempts now count toward the limit, per visitor. One attacker can no longer block everyone else's login. Behind a proxy, set `TRUST_PROXY=1` so the real visitor address is used.
-- **Sign-up and application limits:** 10 sign-ups per hour per address; 20 applications per hour per account and 60 per address. Going over returns `429`.
-- **Fake applications:** applying now requires an account, and the application always uses that account's name, email, and phone. Guest applications are no longer accepted. Visitors who are not signed in are invited to sign in or register, then return to the same job.
-- **Password changes:** changing a password ends the account's other sessions. A password reset by an administrator ends all of that account's sessions.
-- **Tests:** four new tests cover these fixes, for a total of 14 API tests.
-
-**Known limits:**
-
-- Email addresses are not verified, so someone could still register with another person's address and apply.
-- Limits are kept in memory and reset when the server restarts. People sharing one network, such as a classroom, also share the per-address limits.
-- The project runs locally only. Its demo accounts have public passwords, so do not expose it to the Internet as it is.
+Every listing shows its salary range, contract and remote policy. Candidates apply with their profile and follow each step of their applications. Recruiters manage their company's jobs and move applications through a pipeline. The project administrator manages everything.
 
 ## Get started in 30 seconds
 
-Requirement: **Python 3.10 or later**. No library installation, no npm, no API key, and no Internet connection needed.
+Requirement: **Python 3.10 or later**. No library installation, no npm, no API key and no Internet connection needed.
 
 From the `jobboard` folder:
 
@@ -45,66 +14,80 @@ From the `jobboard` folder:
 python server.py
 ```
 
-On Windows, you can also double-click **`run.cmd`**. The launcher looks for `py`, then the Python bundled with Codex if present, then `python`.
+On Windows you can also double-click **`run.cmd`**. Open **http://127.0.0.1:8000** and keep the terminal open; `Ctrl+C` stops the server. Use `python server.py --port 8080` for another port.
 
-Open **http://127.0.0.1:8000**. Keep the terminal open; `Ctrl+C` stops the server.
-
-Different port:
-
-```sh
-python server.py --port 8080
-```
-
-The database is automatically created in `data/hireloop.sqlite3`, then populated **by the backend** only on first launch. Changes persist across restarts.
+The database is created in `data/hireloop.sqlite3` and filled with demo data on first launch. An existing database from an earlier version is **upgraded automatically** on start: accounts, IDs and relationships are kept, existing ads become "published" and every existing application gets its first history entry.
 
 ### Demo accounts
 
 | Access | Email | Password |
 |---|---|---|
-| Administrator | `admin@hireloop.test` | `Admin2026!` |
+| Project administrator | `admin@hireloop.test` | `Admin2026!` |
+| Recruiter at Studio North (Inès Moreau) | `company@test.com` | `Company123!` |
 | Candidate (Camille) | `camille@hireloop.test` | `Camille2026!` |
 | Candidate (Alex) | `alex@hireloop.test` | `Alex2026!` |
-| Company | `company@test.com` | `Company123!` |
 
-All companies, job ads, and people are **fictional**. The initial data contains 6 companies, 6 categories, 12 job ads, 4 people, and 3 applications.
+The sign-in page lists these accounts with a **Use** button that signs in directly. All companies, jobs and people are **fictional**. The demo data has 6 companies, 6 categories, 14 jobs (12 published, 1 draft, 1 closed), 8 people (4 extra applicants without a password) and 10 applications with their status history.
 
-## Features
+## What's in it
 
-- Paginated job ads, search by job title/keyword/company, filters by city, field, contract type, and work arrangement; sorting by relevance, date, or salary.
-- Each ad shows a title, a summary, the conditions, a **Learn more** button, and an **Apply** button.
-- Full details loaded with `fetch()`, without reloading the document and without a popup. URL fragments such as `#job/1` make views shareable and compatible with the Back button.
-- Applying requires an account: the candidate writes a message, and the name, email, and phone come from their profile. Visitors who are not signed in are invited to sign in or register, then return to the job.
-- The message, date, job ad, candidate, and status are stored. Duplicate applications are rejected.
-- Sign-up, login, logout, profile and password editing; personal tracking of applications.
-- Redirect after login: administrators go to the admin area, candidates go to the job ads.
-- Server-side protected administration: view, create, edit, and delete **job ads, companies, categories, people, and applications**. Forms with reference dropdowns and paginated tables.
-- Application status updates: received, in progress, interview, accepted, or rejected.
-- Responsive bilingual French / English interface, keyboard navigation, form labels, empty states, built-in errors and confirmations.
+### For candidates
 
-**Receiving applications:** messages are stored in SQLite and visible in the Applications tab of the admin area. There is no SMTP sending and no simulated email sending; `email_status = Enregistré` ("Saved") only indicates that the message was stored. The assignment does not require a CV, and no file upload is implemented.
+- Search by keyword (title, summary, company or field), city, contract, work arrangement, field and minimum salary. Sort by relevance, date or salary. Filters are kept in the address (`#jobs?q=react&contract=CDI`), so a search can be shared or refreshed. On phones, filters open as a bottom sheet.
+- Job pages with the full description, requirements as a list, an "at a glance" panel, the company, and similar jobs.
+- **Save jobs** with the bookmark icon and find them under *Saved jobs*.
+- **Apply** with a message (20 characters minimum, with a live counter). Name, email and phone come from the profile. The draft message is kept in the browser until it is sent. Visitors who are not signed in are invited to sign in or register, then return to the same job.
+- **Track applications**: a stepper (Received → In progress → Interview → Decision) that only marks steps really reached, the status history, the message sent, and a "New" badge when a recruiter changes a status. An application can be **withdrawn** until it receives a decision.
+- Profile with headline, city, portfolio link and bio, with a completion meter. Password change, and **account deletion** (password required).
+
+### For recruiters (`company_admin`)
+
+- **Dashboard**: published, draft and closed jobs, applications this week, applications waiting for a reply, job views, a 14-day chart, the status breakdown, latest applications, and the most followed jobs.
+- **Jobs**: tabs by status with counts, search, quick **Publish / Close / Reopen** actions, and an editor in a side panel. A job can be kept as a **draft** (only the team can see and preview it), **published**, or **closed** (still visible, but no new applications). Publishing a draft dates it from that day.
+- **Applications**: tabs by status with counts, filter by job, search by name or email, a status selector on each row, and **CSV export** (opens in Excel, accents included). The detail panel shows the candidate's profile and contact links, the message, a status picker, **private notes** (never shown to the candidate) and the full history with who changed what.
+- **Company profile** with a live preview of how it appears on job pages.
+
+Recruiters only see their own company's jobs, applications and applicants. This is enforced by the API, including direct access by ID. They cannot feature their own jobs, and new jobs automatically belong to their company with them as the contact.
+
+### For the project administrator (`admin`)
+
+Everything above for every company, plus **Companies**, **Categories** and **Users**. In Users you can filter by role, see the last sign-in, create accounts, assign the Recruiter role and its company, and reset passwords. Only the administrator can feature a job on the home page. The last administrator cannot be removed or demoted.
+
+### Interface
+
+- Bilingual **French / English** switcher. French is the default; the choice is remembered, and `?lang=en` in the address forces a language. Switching does not reload the page and keeps what was typed. Job content written by recruiters stays in its original language.
+- Responsive from phones (checked at 390 px wide) to wide screens, with no horizontal scrolling. Admin tables turn into stacked cards on phones, and the console sidebar becomes a scrollable tab bar.
+- Keyboard-friendly: skip link, visible focus, a <kbd>Esc</kbd>-closable side panel and dialogs, labelled icon buttons, and `aria-current` on navigation.
+- Confirmation dialogs for destructive actions, toasts with follow-up links, skeleton loading, and empty states that say what to do next.
+
+**Receiving applications:** messages are stored in SQLite and appear in the recruiter's Applications screen. No email is sent. `email_status = Enregistré` ("Saved") only means the message was stored. There is no CV upload.
 
 ## Architecture
 
 ```text
 jobboard/
-  server.py              HTTP server, API, validation, and authentication
-  schema.sql             Tables, foreign keys, constraints, and indexes
-  seed.py                Fictional data inserted by the backend
+  server.py              HTTP server, REST API, validation, permissions, migrations
+  schema.sql             Tables, foreign keys, constraints and indexes
+  seed.py                Fictional demo data, inserted only into an empty database
   run.cmd                Windows launcher
   public/
-    index.html           HTML structure and navigation
-    style.css            Visual identity and responsive layout
-    app.js               Views, fetch, forms, and administration
-    i18n.js              FR/EN translations and language preference
+    index.html           Page shell: header, footer, script loading
+    style.css            Design tokens, components, pages, responsive rules
+    i18n.js              FR/EN catalogue and DOM translation
+    js/core.js           API client, formatting, icons, toast, dialog, side panel
+    js/jobs.js           Job search, job page and application form, companies
+    js/account.js        Sign-in, registration, candidate space
+    js/admin.js          Recruiter and administrator console
+    js/main.js           Header, hash router, start-up
     favicon.svg          Local icon
   tests/test_api.py      HTTP integration tests on a temporary database
-  tests/test_i18n.cjs    Translation and input-preservation tests
+  tests/test_i18n.cjs    Translation tests
   docs/queries.sql       The three SQL queries from the bootstrap
   docs/VALIDATION.md     Checks and demo walkthrough
-  data/                  Local database and logs, excluded from the source deliverable
+  data/                  Local database, excluded from the source deliverable
 ```
 
-The browser communicates exclusively with `/api`. The server uses the Python standard library (`http.server`, `sqlite3`, `hashlib`). SQLite is a real SQL database with joins, constraints, transactions, and on-disk storage. The same origin serves both the API and the static assets.
+The browser talks to the server only through `/api`. The server uses the Python standard library (`http.server`, `sqlite3`, `hashlib`, `csv`). The frontend is plain ES modules with no framework or bundler. Views are addressed by URL fragments (`#job/1`, `#admin/applications/12`), so the Back button and shared links work.
 
 ### Relational schema
 
@@ -115,128 +98,132 @@ erDiagram
   people ||--o{ ads : contact
   people ||--o{ applications : applies
   ads ||--o{ applications : receives
+  applications ||--o{ application_events : history
+  people ||--o{ saved_ads : bookmarks
+  ads ||--o{ saved_ads : saved
   people ||--o{ sessions : owns
 ```
 
 | Table | Main fields |
 |---|---|
-| `companies` | name, industry, city, website, description, color |
+| `companies` | name, industry, city, website, description, colour |
 | `categories` | unique name |
-| `people` | name, unique email, phone, optional hashed password, role |
-| `ads` | company, category, contact, title, summary, description, profile, city, contract, work arrangement, salaries, schedule, featured flag, date |
-| `applications` | ad, person, message, status, storage trace, date; unique per person/ad |
-| `sessions` | token hash, person, expiration |
+| `people` | name, unique email, phone, hashed password, role, company (recruiters), headline, city, bio, website, last sign-in |
+| `ads` | company, category, contact, title, summary, description, requirements, city, contract, work arrangement, salaries, schedule, featured, **status** (`draft`/`published`/`closed`), **views**, dates |
+| `applications` | ad, person, message, status, contact details frozen at the time of applying, **private notes**, date of the last status change; unique per person and ad |
+| `application_events` | application, status, who made the change, date |
+| `saved_ads` | person, ad, date; one row per pair |
+| `sessions` | token hash, person, expiry |
 
-Creating an account with an already known address is rejected. A person without a password, such as an older guest applicant or a contact created by an administrator, cannot log in until an administrator sets one. Password recovery and email verification are not part of this version, so an account's email address is not proven to belong to its owner.
-
-Deleting a job ad or a person deletes its applications by cascade. Deleting a company, category, or person still referenced as an ad's contact is rejected (`409`). The last administrator is protected, and administrators cannot delete their own account. The technical `sessions` table is not exposed through CRUD, to avoid leaking tokens.
+Deleting an ad or a person deletes their applications, history and bookmarks by cascade. Deleting a company, category or person still referenced by an ad is refused (`409`). A recruiter who is still the contact of an ad must hand it over before deleting their account.
 
 ## REST API
 
-All routes are prefixed with **`/api`**. Request bodies are JSON with `Content-Type: application/json`. Error responses have the form `{"error":"Explanation"}`. Lists are generally `{items,total,page,limit}`; pagination `?page=1&limit=6`, maximum limit 100.
+All routes start with **`/api`**. Bodies are JSON with `Content-Type: application/json`. Errors look like `{"error":"Explanation"}`. Lists are `{items,total,page,limit}` with `?page=1&limit=6` (maximum 100).
 
-### Public and account routes
+### Public routes
 
 | Method | Route | Purpose |
 |---|---|---|
 | GET | `/health` | API and SQLite availability |
-| GET | `/ads` | Filtered, paginated job ads |
-| GET | `/ads/:id` | Full details of a job ad |
-| GET | `/companies/:id/ads` | A company's job ads |
-| GET | `/meta` | Companies (ID/name), categories, and cities for filters |
-| GET | `/stats` | Number of job ads, companies, people, and applications |
-| POST | `/ads/:id/applications` | Apply with `{"message":...}` (session required) |
-| POST | `/auth/register` | Create a candidate account and open a session |
-| POST | `/auth/login` | Open a session |
-| POST | `/auth/logout` | Revoke the session |
-| GET | `/auth/me` | Current account or `null` |
-| PATCH | `/account` | Edit own profile (session required) |
-| GET | `/my-applications` | Own applications only (session required) |
+| GET | `/ads` | Published ads. Filters: `q`, `location`, `category_id`, `company_id`, `contract`, `work_mode`, `min_salary`. Sort: `sort=relevant\|recent\|salary` |
+| GET | `/ads/:id` | One ad (published or closed; drafts only for their team). Counts a view. When signed in, adds `viewer: {saved, application, can_manage}` |
+| GET | `/ads/:id/similar` | Up to 3 published ads in the same field or company |
+| GET | `/companies/:id/ads` | A company's published ads |
+| GET | `/directory/companies` | Public company list with the number of open jobs |
+| GET | `/directory/companies/:id` | Public company profile with its published ads |
+| GET | `/meta` | Companies, categories with job counts, cities, contracts, work arrangements, statuses |
+| GET | `/stats` | Published ads, hiring companies, applications, people |
 
-`/ads` filters: `q`, `location`, `category_id`, `company_id`, `contract`, `work_mode`. Sorting: `sort=relevant`, `sort=recent`, `sort=salary`. Filters are combined with AND; text search uses SQLite `LIKE` (accent matching follows native SQLite behavior).
-
-### Admin CRUD
-
-For each of the resources **`companies`, `categories`, `people`, `ads`, `applications`**:
+### Account and candidate routes
 
 | Method | Route | Purpose |
 |---|---|---|
-| GET | `/:resource` | Paginated list |
-| GET | `/:resource/:id` | Read a record |
-| POST | `/:resource` | Create a record |
-| PATCH | `/:resource/:id` | Update the provided fields |
-| PUT | `/:resource/:id` | Update with all required fields |
-| DELETE | `/:resource/:id` | Delete a record |
+| POST | `/auth/register` | Create a candidate account and open a session |
+| POST | `/auth/login` | Open a session |
+| POST | `/auth/logout` | Close the session |
+| GET | `/auth/me` | `{user, updates, saved}`: the account, the number of status updates not yet seen, the saved ad IDs |
+| PATCH | `/account` | Edit own profile (`name`, `email`, `phone`, `headline`, `location`, `bio`, `website`, `password`). Email or password changes need `current_password` |
+| DELETE | `/account` | Delete own account, with `{"current_password":...}` |
+| POST | `/ads/:id/applications` | Apply with `{"message":...}` (candidate accounts only) |
+| GET | `/my-applications` | Own applications with their history and an `updated` flag. Private notes are never included |
+| POST | `/my-applications/seen` | Mark status updates as seen |
+| DELETE | `/my-applications/:id` | Withdraw an application that has no decision yet |
+| GET | `/saved` | Saved ads |
+| PUT / DELETE | `/saved/:ad_id` | Save or unsave an ad |
 
-Exception: viewing job ads remains public. All other CRUD operations require an administrator session, even when the URL is entered directly. People lists never return password hashes.
+### Administration
 
-Writable fields: see `RESOURCES` and `REQUIRED` in `server.py`, as well as `schema.sql`. `id` and `created_at` are managed by the server. An optional password can be sent through the people CRUD; an account without a password cannot log in.
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/admin/dashboard` | Figures for the dashboard, limited to the recruiter's company |
+| GET | `/admin/stats` | Record counts within the admin's scope |
+| GET | `/admin/applications/export` | CSV export (`?status=` and `?ad_id=` optional) |
+
+CRUD on **`companies`, `categories`, `people`, `ads`, `applications`**: `GET /:resource`, `GET /:resource/:id`, `POST /:resource`, `PATCH` and `PUT /:resource/:id`, `DELETE /:resource/:id`. Prefix the routes with `/admin` to read the admin view of ads. Lists accept `q` (search) and exact filters: `status`, `company_id`, `category_id` and `contract` for ads; `status`, `ad_id` and `company_id` for applications; `role` and `company_id` for people. Ad and application lists also return `facets` (counts per status) for tabs. Records come with readable names (`company_name`, `ad_title`, `applications_count`…), so the interface never has to download whole tables to show names.
+
+Reading published ads stays public. Every other CRUD operation requires an administrator or a recruiter, even when the URL is typed directly. People lists never return password hashes. Writable fields: see `RESOURCES` and `REQUIRED` in `server.py`. Text lengths, emails, phones, URLs, colours, contracts, statuses and roles are validated with clear messages.
 
 ### curl examples
 
-In PowerShell, use `curl.exe` if `curl` refers to a PowerShell command. These examples are written for a POSIX terminal; you can also use Postman or Insomnia with the same JSON bodies.
+In PowerShell, use `curl.exe`. These examples are written for a POSIX shell; Postman or Insomnia work with the same bodies.
 
 ```sh
-curl 'http://127.0.0.1:8000/api/ads?contract=CDI&location=Paris'
+curl 'http://127.0.0.1:8000/api/ads?contract=CDI&location=Paris&min_salary=45000'
 curl http://127.0.0.1:8000/api/ads/1
-curl http://127.0.0.1:8000/api/companies/1/ads
+curl http://127.0.0.1:8000/api/directory/companies/1
 
-curl -c cookies.txt -H 'Content-Type: application/json' \
-  -d '{"email":"admin@hireloop.test","password":"Admin2026!"}' \
+curl -c recruiter.txt -H 'Content-Type: application/json' \
+  -d '{"email":"company@test.com","password":"Company123!"}' \
   http://127.0.0.1:8000/api/auth/login
 
-curl -b cookies.txt -H 'Content-Type: application/json' \
-  -d '{"company_id":1,"category_id":1,"contact_id":1,"title":"Développeur Python","summary":"Rejoignez notre équipe.","description":"Construire et maintenir notre API.","requirements":"Python et SQL.","location":"Paris","contract":"CDI","work_mode":"Hybride","salary_min":40000,"salary_max":50000}' \
+# A recruiter's ad belongs to their company automatically; "draft" keeps it private.
+curl -b recruiter.txt -H 'Content-Type: application/json' \
+  -d '{"category_id":1,"title":"Développeur Python","summary":"Rejoignez notre équipe.","description":"Construire et maintenir notre API.","requirements":"Python\nSQL","location":"Paris","contract":"CDI","work_mode":"Hybride","salary_min":40000,"salary_max":50000,"status":"draft"}' \
   http://127.0.0.1:8000/api/ads
 
-curl -c candidate.txt -H 'Content-Type: application/json' \
-  -d '{"email":"camille@hireloop.test","password":"Camille2026!"}' \
-  http://127.0.0.1:8000/api/auth/login
+curl -b recruiter.txt -X PATCH -H 'Content-Type: application/json' \
+  -d '{"status":"Entretien","notes":"Appel prévu jeudi."}' \
+  http://127.0.0.1:8000/api/applications/1
 
-curl -b candidate.txt -H 'Content-Type: application/json' \
-  -d '{"message":"Bonjour, je souhaite rejoindre votre équipe et contribuer à ce projet."}' \
-  http://127.0.0.1:8000/api/ads/2/applications
+curl -b recruiter.txt -o candidatures.csv http://127.0.0.1:8000/api/admin/applications/export
 ```
 
-Status codes: `200` success; `201` created; `400` invalid data; `401` missing session/wrong credentials; `403` admin access denied/invalid origin; `404` resource not found; `405` method not allowed; `409` duplicate/blocking relation; `413` body too large; `415` wrong content type; `429` too many failed logins, sign-ups, or applications.
+Status codes: `200` success; `201` created; `400` invalid data; `401` not signed in or wrong credentials; `403` not allowed or invalid origin; `404` not found; `405` method not allowed; `409` duplicate, blocking relation or closed ad; `413` body too large; `415` wrong content type; `429` too many attempts.
 
-## Tests and demo
+## Tests
 
 ```sh
 python -m unittest discover -s tests -v
-```
-
-The tests start a server on a free port with a database in a temporary folder; they do not modify the demo data. Fourteen tests cover more than 100 HTTP requests: filters, pagination, anonymous/candidate permissions, accounts, applications, validation, CRUD on all five resources, constraints, and request origin.
-
-### Translation tests
-
-With **Node.js 18 or later**, no dependency installation needed:
-
-```sh
 node --test tests/test_i18n.cjs
 ```
 
-The five tests check the default language and saved preference, dynamic text and dates, switching back to French, the exclusion of free-form content, and the translation of accessibility attributes without altering field values. Node.js is only needed for these tests, not for running the site.
+The API tests start a real server on a free port with a database in a temporary folder; they never touch the demo data. **22 tests** cover search and filters, pagination and sorting, anonymous, candidate, recruiter and admin permissions, accounts, applications, the job lifecycle and view counting, saved jobs, withdrawals, status history, private notes and the "updates" badge, admin search, filters and facets, the dashboard, CSV export, account deletion, the public company directory, validation, migrations, rate limits, robots.txt and the sitemap.
 
-See `docs/VALIDATION.md` for the presentation walkthrough. The three SQL queries required by the bootstrap are in `docs/queries.sql`.
+The **6 translation tests** (Node.js 18 or later, nothing to install) check the default language and the saved preference, templates and dates, that the catalogue has no malformed or duplicate lines, lossless switching, the exclusion of user content, and the translation of accessibility attributes. Node.js is only needed for these tests, not for running the site.
 
-## Configuration and deployment limits
+See `docs/VALIDATION.md` for the demo walkthrough. The three SQL queries required by the bootstrap are in `docs/queries.sql`.
 
-- `JOBBOARD_DB`: alternative SQLite database path. PowerShell example: `$env:JOBBOARD_DB='C:\temp\hireloop.sqlite3'` before starting.
-- `--host`: listening address, `127.0.0.1` by default. The project is delivered for local execution.
-- `COOKIE_SECURE=1`: adds the Secure attribute to cookies for an installation behind HTTPS; do not enable over local HTTP.
-- PBKDF2-HMAC-SHA256 passwords (260,000 iterations and a random salt), random session tokens stored as SHA-256 hashes, HttpOnly/SameSite=Lax cookies, 24-hour expiration, parameterized SQL queries, origin checks, field allowlist, and a CSP policy.
-- `TRUST_PROXY=1`: reads the visitor address from `X-Forwarded-For`. Enable it only behind a proxy that sets this header, because it can otherwise be forged.
-- Limits per visitor address: 15 failed logins over five minutes, 10 sign-ups per hour, and 60 applications per hour, plus 20 applications per hour per account. These in-memory limits reset on restart.
-- The demo accounts and the standard-library HTTP server are intended for development and local evaluation. An Internet deployment requires a suitable server/reverse proxy, HTTPS, and replacing the demo accounts. Nothing is published externally.
-- No SMTP, password recovery, email verification, CV storage, or automatic collection of external job ads is configured. The detailed assignment is covered by job ad management in the admin area.
+## Security
 
-To start from scratch, stop the server, back up and then move `data/hireloop.sqlite3` (and any `-wal`/`-shm` files); a new demo database will be created on the next launch.
+- PBKDF2-HMAC-SHA256 passwords (260,000 iterations, random salt). Random session tokens are stored only as SHA-256 hashes. Cookies are HttpOnly and SameSite=Lax with a 24-hour expiry.
+- Parameterised SQL everywhere; table and column names come from a fixed allowlist.
+- Writes are refused when the `Origin` header points to another site. A strict Content Security Policy is applied; frames and MIME sniffing are blocked.
+- CSV exports neutralise cells that spreadsheet software would run as formulas.
+- Limits per visitor address: 15 failed logins in five minutes, 10 sign-ups per hour, 60 applications per hour, plus 20 applications per hour per account. Changing a password ends the account's other sessions; an admin reset ends all of them.
 
-## Project and company administration
+**Known limits:** email addresses are not verified, and there is no password recovery or email sending. Limits are kept in memory and reset on restart; people sharing one network share the per-address limits. The demo accounts have public passwords, so do not expose the project to the Internet as it is.
 
-The `admin` role administers the entire project. The `company_admin` role is tied to a company via `company_id`: it can edit its company profile, create/edit/delete its job ads, and view received applications with candidates' contact details, then change their status. It cannot manage accounts, roles, or categories. These checks are enforced in the API, including on direct access by ID. Public job ads remain visible to everyone.
+## Configuration
 
-To assign this role: log in as the project administrator, open **Administration → People**, create or edit an account, choose **Company administrator**, select its company, and save. For a new account, set a password so it can log in. Several administrators can be attached to the same company.
+- `JOBBOARD_DB`: another SQLite path. PowerShell: `$env:JOBBOARD_DB='C:\temp\hireloop.sqlite3'`.
+- `--host`: listening address, `127.0.0.1` by default.
+- `COOKIE_SECURE=1`: adds the Secure attribute to cookies behind HTTPS.
+- `TRUST_PROXY=1`: reads the visitor address from `X-Forwarded-For`. Only enable this behind a proxy that sets the header.
+- `JOBBOARD_ENV=production` with `ADMIN_EMAIL` and `ADMIN_PASSWORD` (16 characters or more): no demo data; creates this administrator on first start.
 
-Restart the server after updating: the existing database is migrated automatically, keeping accounts, IDs, and relationships. The existing administrator keeps global access.
+To start from scratch, stop the server, then move `data/hireloop.sqlite3` (and any `-wal`/`-shm` files) elsewhere. A new demo database is created on the next launch.
+
+## Search engines
+
+The server generates `/robots.txt` and `/sitemap.xml` from the address the site is reached on. `robots.txt` blocks private API routes and leaves `/api/ads` open. The sitemap lists the home page only, because views such as `#job/1` are URL fragments, which sitemaps do not support.
